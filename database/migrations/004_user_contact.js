@@ -1,17 +1,48 @@
+const { DataTypes } = require('sequelize');
+
 module.exports = {
   id: '004_user_contact',
   description: 'Add reporter email and phone contact fields',
-  up: async ({ sequelize }) => {
-    await sequelize.query(`
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS email VARCHAR(190) NULL,
-        ADD COLUMN IF NOT EXISTS phone_e164 VARCHAR(20) NULL;
-    `);
+  up: async ({ queryInterface }) => {
+    const cols = await queryInterface.describeTable('users');
 
-    await sequelize.query(`CREATE UNIQUE INDEX uq_users_email ON users (email);`)
-      .catch(() => {});
-    await sequelize.query(`CREATE INDEX idx_users_phone ON users (phone_e164);`)
-      .catch(() => {});
+    if (!cols.email) {
+      await queryInterface.addColumn('users', 'email', {
+        type: DataTypes.STRING(190),
+        allowNull: true,
+      });
+    }
+    if (!cols.phone_e164) {
+      await queryInterface.addColumn('users', 'phone_e164', {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+      });
+    }
+
+    await addIndexIfMissing(queryInterface, 'users', ['email'], {
+      unique: true,
+      name: 'uq_users_email',
+    });
+    await addIndexIfMissing(queryInterface, 'users', ['phone_e164'], {
+      name: 'idx_users_phone',
+    });
   },
 };
+
+async function addIndexIfMissing(queryInterface, table, fields, options) {
+  try {
+    await queryInterface.addIndex(table, fields, options);
+  } catch (err) {
+    const msg = String(err?.message || '').toLowerCase();
+    if (
+      err?.original?.code === 'ER_DUP_KEYNAME' ||
+      err?.original?.code === 'ER_DUP_ENTRY' ||
+      msg.includes('duplicate') ||
+      msg.includes('already exists')
+    ) {
+      return;
+    }
+    throw err;
+  }
+}
 

@@ -18,8 +18,30 @@ module.exports = {
         INDEX idx_status_urgency (status, urgency_level),
         INDEX idx_opened_at      (opened_at),
         INDEX idx_scheduled_purge(scheduled_purge)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id                   CHAR(36)         NOT NULL DEFAULT (UUID()),
+        role                 ENUM('guardian','coordinator','admin','witness') NOT NULL,
+        display_name         VARCHAR(100)         NULL,
+        phone_hash           CHAR(64)             NULL,
+        push_token           VARCHAR(300)         NULL,
+        locale               VARCHAR(10)      NOT NULL DEFAULT 'en',
+        preferred_radius_km  SMALLINT UNSIGNED NOT NULL DEFAULT 10,
+        last_known_lat       DECIMAL(9,6)         NULL,
+        last_known_lng       DECIMAL(9,6)         NULL,
+        location_updated_at  DATETIME             NULL,
+        is_active            TINYINT(1)       NOT NULL DEFAULT 1,
+        created_at           DATETIME         NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (id),
+        INDEX idx_user_location (last_known_lat, last_known_lng),
+        INDEX idx_user_role     (role, is_active)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS missing_persons (
         id              CHAR(36)         NOT NULL DEFAULT (UUID()),
         case_id         CHAR(36)         NOT NULL,
@@ -49,26 +71,10 @@ module.exports = {
           REFERENCES cases(id) ON DELETE CASCADE ON UPDATE CASCADE,
         INDEX idx_mp_case  (case_id),
         INDEX idx_mp_geo   (last_seen_lat, last_seen_lng)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-      CREATE TABLE IF NOT EXISTS users (
-        id                   CHAR(36)         NOT NULL DEFAULT (UUID()),
-        role                 ENUM('guardian','coordinator','admin','witness') NOT NULL,
-        display_name         VARCHAR(100)         NULL,
-        phone_hash           CHAR(64)             NULL,
-        push_token           VARCHAR(300)         NULL,
-        locale               VARCHAR(10)      NOT NULL DEFAULT 'en',
-        preferred_radius_km  SMALLINT UNSIGNED NOT NULL DEFAULT 10,
-        last_known_lat       DECIMAL(9,6)         NULL,
-        last_known_lng       DECIMAL(9,6)         NULL,
-        location_updated_at  DATETIME             NULL,
-        is_active            TINYINT(1)       NOT NULL DEFAULT 1,
-        created_at           DATETIME         NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (id),
-        INDEX idx_user_location (last_known_lat, last_known_lng),
-        INDEX idx_user_role     (role, is_active)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS witness_alerts (
         id                   CHAR(36)         NOT NULL DEFAULT (UUID()),
         case_id              CHAR(36)         NOT NULL,
@@ -90,8 +96,10 @@ module.exports = {
         CONSTRAINT fk_wa_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_wa_case_status (case_id, status),
         INDEX idx_wa_user        (user_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS anonymous_tips (
         id               CHAR(36)     NOT NULL DEFAULT (UUID()),
         case_id          CHAR(36)     NOT NULL,
@@ -114,8 +122,10 @@ module.exports = {
         INDEX idx_tip_case_status (case_id, review_status),
         INDEX idx_tip_geo         (sighting_lat, sighting_lng),
         INDEX idx_tip_token       (submitter_token)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS ai_facial_scores (
         id                   CHAR(36)      NOT NULL DEFAULT (UUID()),
         case_id              CHAR(36)      NOT NULL,
@@ -134,8 +144,10 @@ module.exports = {
         CONSTRAINT fk_afs_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
         CONSTRAINT fk_afs_verifier FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
         INDEX idx_afs_case_score (case_id, similarity_score DESC)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS ai_memory_matches (
         id               CHAR(36)      NOT NULL DEFAULT (UUID()),
         case_id          CHAR(36)      NOT NULL,
@@ -159,8 +171,10 @@ module.exports = {
         CONSTRAINT fk_amm_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
         CONSTRAINT fk_amm_tip  FOREIGN KEY (tip_id)  REFERENCES anonymous_tips(id) ON DELETE SET NULL,
         INDEX idx_amm_case_score (case_id, match_score DESC)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS case_activity_log (
         id          BIGINT UNSIGNED AUTO_INCREMENT NOT NULL,
         case_id     CHAR(36)     NOT NULL,
@@ -172,8 +186,10 @@ module.exports = {
         PRIMARY KEY (id),
         CONSTRAINT fk_cal_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
         INDEX idx_cal_case_time (case_id, occurred_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id         CHAR(36)     NOT NULL DEFAULT (UUID()),
         user_id    CHAR(36)     NOT NULL,
@@ -184,8 +200,10 @@ module.exports = {
         PRIMARY KEY (id),
         UNIQUE KEY uq_ps_user (user_id),
         CONSTRAINT fk_ps_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
+    await sequelize.query(`
       CREATE TABLE IF NOT EXISTS notification_log (
         id              BIGINT UNSIGNED AUTO_INCREMENT NOT NULL,
         alert_id        CHAR(36)         NULL,
@@ -199,8 +217,7 @@ module.exports = {
         INDEX idx_nl_user    (user_id),
         INDEX idx_nl_alert   (alert_id),
         INDEX idx_nl_sent_at (sent_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   },
 };
-
