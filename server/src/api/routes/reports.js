@@ -194,8 +194,10 @@ router.post('/', reportValidation, async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { status = 'active', limit = 20, offset = 0 } = req.query;
+    const safeLimit = clampInt(limit, 1, 200, 20);
+    const safeOffset = clampInt(offset, 0, 10000, 0);
 
-    const [rows] = await db.execute(
+    const [rows] = await db.query(
       `SELECT
          c.id, c.case_number, c.status, c.urgency_level, c.opened_at, c.resolved_at, c.closed_at,
          mp.full_name, mp.nickname, mp.age_at_report, mp.gender,
@@ -206,8 +208,8 @@ router.get('/', async (req, res) => {
        JOIN missing_persons mp ON mp.case_id = c.id
        WHERE c.status = ?
        ORDER BY c.urgency_level DESC, c.opened_at DESC
-       LIMIT ? OFFSET ?`,
-      [status, parseInt(limit), parseInt(offset)]
+       LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+      [String(status)]
     );
 
     return res.json({ cases: rows, count: rows.length });
@@ -406,6 +408,15 @@ router.get('/:caseId', async (req, res) => {
 function looksLikeUuid(value) {
   return typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function clampInt(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const i = Math.trunc(n);
+  if (i < min) return min;
+  if (i > max) return max;
+  return i;
 }
 
 module.exports = router;

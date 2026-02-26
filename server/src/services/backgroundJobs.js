@@ -56,7 +56,7 @@ async function purgeOldLocationHistory() {
   }
 }
 
-function schedule(fn, everyMs, label) {
+function schedule(fn, everyMs, label, initialDelayMs = everyMs) {
   const run = async () => {
     try {
       await fn();
@@ -64,24 +64,36 @@ function schedule(fn, everyMs, label) {
       logger.error(`[Jobs] ${label} failed:`, err.message);
     }
   };
-  run().catch(() => {});
-  timers.push(setInterval(run, everyMs));
+  const timeout = setTimeout(() => {
+    run().catch(() => {});
+    timers.push(setInterval(run, everyMs));
+  }, initialDelayMs);
+  timers.push(timeout);
 }
 
 function startBackgroundJobs() {
   if (started) return;
   started = true;
 
-  schedule(runUrgencySweep, HOUR_MS, 'urgency sweep');
-  schedule(runReAlertSweep, HOUR_MS, 're-alert sweep');
-  schedule(() => caseLifecycle.purgeResolvedCases(), DAY_MS, 'case PII purge');
-  schedule(purgeOldLocationHistory, DAY_MS, 'location purge');
+  if (String(process.env.ENABLE_BACKGROUND_JOBS || 'true').toLowerCase() === 'false') {
+    logger.info('[Jobs] Background jobs disabled by ENABLE_BACKGROUND_JOBS=false');
+    return;
+  }
+
+  // Stagger first runs to avoid opening too many DB connections at startup.
+  schedule(runUrgencySweep, HOUR_MS, 'urgency sweep', 2 * 60 * 1000);
+  schedule(runReAlertSweep, HOUR_MS, 're-alert sweep', 4 * 60 * 1000);
+  schedule(() => caseLifecycle.purgeResolvedCases(), DAY_MS, 'case PII purge', 10 * 60 * 1000);
+  schedule(purgeOldLocationHistory, DAY_MS, 'location purge', 12 * 60 * 1000);
 
   logger.info('[Jobs] Background jobs started');
 }
 
 function stopBackgroundJobs() {
-  for (const t of timers) clearInterval(t);
+  for (const t of timers) {
+    clearTimeout(t);
+    clearInterval(t);
+  }
   timers = [];
   started = false;
 }
@@ -90,4 +102,3 @@ module.exports = {
   startBackgroundJobs,
   stopBackgroundJobs,
 };
-

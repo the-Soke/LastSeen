@@ -74,6 +74,16 @@ const MAX_ALERTS_PER_CASE = 500;
  * @returns {Promise<WitnessCandidate[]>}
  */
 async function findWitnessesNearEvent({ lat, lng, lastSeenAt, urgency = 10, radiusKm }) {
+  if (!(lastSeenAt instanceof Date) || Number.isNaN(lastSeenAt.getTime())) {
+    throw new Error('Invalid lastSeenAt timestamp.');
+  }
+
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+    throw new Error('Invalid event coordinates.');
+  }
+
   const multiplier = urgency >= 8 ? URGENCY_MULTIPLIER.high
     : urgency >= 4               ? URGENCY_MULTIPLIER.medium
     : URGENCY_MULTIPLIER.low;
@@ -82,7 +92,7 @@ async function findWitnessesNearEvent({ lat, lng, lastSeenAt, urgency = 10, radi
 
   // ── 1. Bounding box deltas ────────────────────────────────────────────────
   const latDelta = effectiveRadius / 111.0;
-  const lngDelta = effectiveRadius / (111.0 * Math.cos(toRad(lat)));
+  const lngDelta = effectiveRadius / (111.0 * Math.cos(toRad(latNum)));
 
   const windowStart = new Date(lastSeenAt.getTime() - TIME_WINDOW_MINUTES * 60_000);
   const windowEnd   = new Date(lastSeenAt.getTime() + TIME_WINDOW_MINUTES * 60_000);
@@ -97,7 +107,7 @@ async function findWitnessesNearEvent({ lat, lng, lastSeenAt, urgency = 10, radi
   //            compute exact Haversine distance.
   //  Outer query: per-user, keep only the closest ping (MIN distance),
   //               join push subscription and filter opt-outs.
-  const [rows] = await db.execute(
+  const [rows] = await db.query(
     `
     SELECT
       u.id                                     AS userId,
@@ -159,22 +169,20 @@ async function findWitnessesNearEvent({ lat, lng, lastSeenAt, urgency = 10, radi
 
     ORDER BY distanceKm ASC
 
-    LIMIT ?
+    LIMIT ${MAX_ALERTS_PER_CASE}
     `,
     [
       // minutesFromEvent TIMESTAMPDIFF ref
       lastSeenAt,
       // Haversine params (lat, lng, lat, lat)
-      lat, lng, lat,
+      latNum, lngNum, latNum,
       // Time window
       windowStart, windowEnd,
       // Bounding box
-      lat - latDelta, lat + latDelta,
-      lng - lngDelta, lng + lngDelta,
+      latNum - latDelta, latNum + latDelta,
+      lngNum - lngDelta, lngNum + lngDelta,
       // Radius caps
       effectiveRadius, effectiveRadius,
-      // Limit
-      MAX_ALERTS_PER_CASE,
     ]
   );
 
