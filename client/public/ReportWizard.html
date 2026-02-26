@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0D1B2A" />
+  <title>Report Missing Child — LastSeen</title>
+
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <!-- Google Fonts: Syne (display) + Literata (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Literata:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── Design tokens ─────────────────────────────────────────── */
+    :root {
+      --ink:       #0D1B2A;
+      --ink-soft:  #2C3E50;
+      --sand:      #F5EFE4;
+      --sand-dark: #EDE4D4;
+      --amber:     #E8541A;
+      --amber-dim: #c44614;
+      --teal:      #1A8A7A;
+      --teal-light:#E6F5F2;
+      --red-soft:  #FDF0EE;
+      --red:       #C0392B;
+      --white:     #FDFAF6;
+      --border:    rgba(13,27,42,.12);
+      --shadow-card: 0 8px 40px rgba(13,27,42,.10);
+      --radius:    16px;
+      --step-w:    660px;
+    }
+
+    /* ─── Reset / base ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--ink);
+      color: var(--ink);
+      font-family: 'Literata', Georgia, serif;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Offline banner ────────────────────────────────────────── */
+    #offline-banner {
+      display: none;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: var(--amber); color: #fff;
+      text-align: center; padding: 10px 16px;
+      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+      letter-spacing: .04em;
+    }
+    body.offline #offline-banner { display: block; }
+    body.offline .page-shell { padding-top: 48px; }
+
+    /* ─── Shell ─────────────────────────────────────────────────── */
+    .page-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, #1a3c5e 0%, transparent 70%),
+        var(--ink);
+    }
+
+    /* ─── Top bar ───────────────────────────────────────────────── */
+    .topbar {
+      width: 100%; max-width: var(--step-w);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 24px 24px 0;
+    }
+    .topbar-links {
+      display: flex; gap: 10px; align-items: center;
+      font-family: 'Syne', sans-serif; font-size: 12px; letter-spacing: .04em;
+    }
+    .topbar-links a {
+      color: rgba(245,239,228,.85); text-decoration: none;
+      border: 1px solid rgba(245,239,228,.22);
+      border-radius: 999px; padding: 5px 10px;
+    }
+    .topbar-links a:hover { border-color: rgba(245,239,228,.5); color: var(--sand); }
+    .topbar-logo {
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px;
+      color: var(--sand); letter-spacing: -.02em;
+    }
+    .topbar-logo span { color: var(--amber); }
+    .topbar-eta {
+      font-family: 'Literata', serif; font-size: 13px; color: rgba(245,239,228,.55);
+      font-style: italic;
+    }
+
+    /* ─── Progress track ────────────────────────────────────────── */
+    .progress-wrap {
+      width: 100%; max-width: var(--step-w);
+      padding: 28px 24px 0;
+    }
+    .progress-labels {
+      display: flex; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .progress-label {
+      font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: rgba(245,239,228,.4);
+      transition: color .3s;
+    }
+    .progress-label.active  { color: var(--sand); }
+    .progress-label.done    { color: var(--teal); }
+    .progress-track {
+      height: 3px; background: rgba(255,255,255,.1);
+      border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: var(--amber);
+      border-radius: 2px;
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ─── Card ──────────────────────────────────────────────────── */
+    .card {
+      width: 100%; max-width: var(--step-w);
+      margin: 24px 16px 40px;
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 32px 40px 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, var(--sand) 0%, var(--white) 100%);
+    }
+    .step-eyebrow {
+      font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--amber); margin-bottom: 6px;
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 26px;
+      color: var(--ink); line-height: 1.15; letter-spacing: -.03em;
+    }
+    .card-subtitle {
+      margin-top: 6px; font-size: 14px; color: var(--ink-soft);
+      font-style: italic; font-weight: 300;
+    }
+
+    .card-body { padding: 36px 40px; }
+
+    /* ─── Form elements ─────────────────────────────────────────── */
+    .field { margin-bottom: 24px; }
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      display: block; margin-bottom: 6px;
+      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+      letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft);
+    }
+    label .req { color: var(--amber); margin-left: 2px; }
+
+    input[type="text"], input[type="number"], input[type="datetime-local"],
+    select, textarea {
+      width: 100%; padding: 13px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: var(--white);
+      font-family: 'Literata', serif; font-size: 15px; color: var(--ink);
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+      appearance: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(232,84,26,.12);
+    }
+    textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+
+    .field-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 500px) { .field-row { grid-template-columns: 1fr; } }
+
+    /* ─── Chip selectors (skin tone, gender, etc.) ──────────────── */
+    .chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .chip {
+      padding: 8px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      font-family: 'Literata', serif; font-size: 13px; color: var(--ink-soft);
+      cursor: pointer; background: var(--white);
+      transition: all .18s;
+      user-select: none;
+    }
+    .chip:hover { border-color: var(--amber); color: var(--amber); }
+    .chip.selected {
+      background: var(--amber); border-color: var(--amber);
+      color: #fff; font-weight: 600;
+    }
+
+    /* ─── Map ───────────────────────────────────────────────────── */
+    #map {
+      width: 100%; height: 280px;
+      border-radius: 10px; border: 1.5px solid var(--border);
+      margin-top: 4px; overflow: hidden;
+      background: #e8e0d5;
+    }
+    .map-hint {
+      margin-top: 8px; font-size: 13px; color: var(--ink-soft);
+      font-style: italic;
+    }
+    .coords-display {
+      display: flex; gap: 12px; margin-top: 10px;
+    }
+    .coords-display input {
+      font-size: 13px; padding: 9px 12px;
+      background: var(--sand); border-color: transparent;
+    }
+
+    /* ─── Photo upload ──────────────────────────────────────────── */
+    .photo-drop {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--sand);
+      position: relative;
+    }
+    .photo-drop:hover, .photo-drop.drag-over {
+      border-color: var(--amber); background: rgba(232,84,26,.04);
+    }
+    .photo-drop input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+    }
+    .photo-drop-icon { font-size: 36px; margin-bottom: 8px; }
+    .photo-drop-text {
+      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+      color: var(--ink-soft);
+    }
+    .photo-drop-sub { font-size: 12px; color: #999; margin-top: 4px; }
+    #photo-preview {
+      display: none; margin-top: 16px;
+      border-radius: 10px; overflow: hidden;
+      border: 2px solid var(--teal);
+    }
+    #photo-preview img { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+    .photo-clear {
+      display: none; margin-top: 8px;
+      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+      color: var(--red); cursor: pointer; text-align: center;
+      letter-spacing: .04em; text-transform: uppercase;
+    }
+
+    /* ─── Review step ───────────────────────────────────────────── */
+    .review-section {
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .review-section-title {
+      padding: 12px 18px;
+      background: var(--sand);
+      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase; color: var(--amber);
+    }
+    .review-grid {
+      display: grid; grid-template-columns: 140px 1fr;
+      gap: 0;
+    }
+    .review-key, .review-val {
+      padding: 10px 18px;
+      font-size: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .review-key { color: var(--ink-soft); font-weight: 300; font-style: italic; }
+    .review-val { color: var(--ink); font-weight: 400; }
+
+    /* ─── Navigation buttons ────────────────────────────────────── */
+    .card-footer {
+      padding: 24px 40px 32px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid var(--border);
+      background: var(--white);
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 28px;
+      border-radius: 10px; border: none;
+      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+      letter-spacing: .04em; cursor: pointer;
+      transition: all .18s; outline: none;
+    }
+    .btn-ghost {
+      background: transparent; color: var(--ink-soft);
+      border: 1.5px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--ink-soft); color: var(--ink); }
+    .btn-primary {
+      background: var(--amber); color: #fff;
+      box-shadow: 0 4px 18px rgba(232,84,26,.30);
+    }
+    .btn-primary:hover { background: var(--amber-dim); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled {
+      background: #ccc; box-shadow: none; cursor: not-allowed; transform: none;
+    }
+    .btn-success {
+      background: var(--teal); color: #fff;
+      box-shadow: 0 4px 18px rgba(26,138,122,.25);
+    }
+    .btn-success:hover { background: #167064; }
+
+    /* ─── Validation error ──────────────────────────────────────── */
+    .field-error {
+      margin-top: 5px; font-size: 12px; color: var(--red);
+      font-style: italic; display: none;
+    }
+    .field-error.visible { display: block; }
+    input.invalid, select.invalid, textarea.invalid {
+      border-color: var(--red) !important;
+    }
+
+    /* ─── Success overlay ───────────────────────────────────────── */
+    #success-screen {
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 60px 40px;
+    }
+    #success-screen.show { display: flex; }
+    .success-icon {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: var(--teal-light); display: flex; align-items: center;
+      justify-content: center; font-size: 36px; margin-bottom: 24px;
+      animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    @keyframes popIn {
+      from { transform: scale(0); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    .success-title {
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px;
+      color: var(--ink); margin-bottom: 12px;
+    }
+    .success-case {
+      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+      letter-spacing: .1em; color: var(--amber); margin-bottom: 8px;
+    }
+    .success-body {
+      font-size: 15px; color: var(--ink-soft); max-width: 400px; line-height: 1.6;
+    }
+    .success-offline-note {
+      margin-top: 16px; padding: 14px 20px;
+      background: var(--sand); border-radius: 10px;
+      font-size: 13px; color: var(--ink-soft); font-style: italic;
+    }
+
+    /* ─── Step transitions ──────────────────────────────────────── */
+    .step { display: none; animation: stepIn .3s ease both; }
+    .step.active { display: block; }
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ─── Scrollbar ─────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+
+<body>
+  <!-- Offline banner -->
+  <div id="offline-banner">
+    📡 You're offline — your report will be saved locally and submitted automatically when you reconnect.
+  </div>
+
+  <div class="page-shell">
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-logo">Last<span>Seen</span></div>
+      <div class="topbar-links">
+        <a href="/auth">Log In / Sign Up</a>
+        <a href="/feed">Discovery Feed</a>
+        <a href="/tip">Anonymous Tip</a>
+        <a href="/resolve">Resolve Case</a>
+        <a href="/ai">AI Review</a>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-wrap">
+      <div class="progress-labels">
+        <span class="progress-label active" data-step="1">Identity</span>
+        <span class="progress-label" data-step="2">Last Seen</span>
+        <span class="progress-label" data-step="3">Description</span>
+        <span class="progress-label" data-step="4">Photo</span>
+        <span class="progress-label" data-step="5">Review</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:20%"></div>
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div class="card" id="main-card">
+
+      <!-- ═══ STEP 1: Identity ═══ -->
+      <div class="step active" id="step-1">
+        <div class="card-header">
+          <div class="step-eyebrow">Step 1 of 5</div>
+          <div class="card-title">Who is missing?</div>
+          <div class="card-subtitle">Basic identity information about the child.</div>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label for="full-name">Full Name <span class="req">*</span></label>
+            <input type="text" id="full-name" placeholder="e.g. Amara Diallo" autocomplete="off" />
+            <div class="field-error" id="err-full-name">Please enter the child's full name.</div>
+          </div>
+          <div class="field">
+            <label for="nickname">Nickname / Common Name</label>
+            <input type="text" id="nickname" placeholder="What are they usually called?" />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="age">Age (years) <span class="req">*</span></label>
+              <input type="number" id="age" min="0" max="17" placeholder="e.g. 8" />
+              <div class="field-error" id="err-age">Please enter a valid age (0–17).</div>
+            </div>
+            <div class="field">
+              <label>Gender <span class="req">*</span></label>
+              <div class="chip-group" id="gender-chips">
+                <div class="chip" data-val="male">Boy</div>
+                <div class="chip" data-val="female">Girl</div>
+                <div class="chip" data-val="other">Other</div>
+                <div class="chip" data-val="unknown">Unknown</div>
+              </div>
+              <div class="field-error" id="err-gender">Please select a gender.</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span></span>
+          <button class="btn btn-primary" onclick="goToStep(2)">Next →</button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 2: Last Seen ═══ -->
+      <div class="step" id="step-2">
+        <div class="card-header">
+          <div class="step-eyebrow">Step 2 of 5</div>
+          <div class="card-title">Where & when were they last seen?</div>
+          <div class="card-subtitle">Tap the map to set the exact location.</div>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label for="last-seen-at">Date & Time Last Seen <span class="req">*</span></label>
+            <input type="datetime-local" id="last-seen-at" />
+            <div class="field-error" id="err-last-seen-at">Please select when the child was last seen.</div>
+          </div>
+          <div class="field">
+            <label>Location on Map <span class="req">*</span></label>
+            <div id="map"></div>
+            <div class="map-hint">Tap anywhere on the map to drop a pin. You can also type coordinates below.</div>
+            <div class="field-error" id="err-map">Please select a location on the map.</div>
+            <div class="coords-display">
+              <input type="text" id="lat-display" placeholder="Latitude" readonly />
+              <input type="text" id="lng-display" placeholder="Longitude" readonly />
+            </div>
+          </div>
+          <div class="field">
+            <label for="last-seen-place">Location Description</label>
+            <input type="text" id="last-seen-place" placeholder="e.g. Near the market on Broad Street" />
+          </div>
+          <div class="field">
+            <label for="last-seen-notes">Additional Context</label>
+            <textarea id="last-seen-notes" placeholder="What was happening when they went missing? Any witnesses nearby?"></textarea>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-ghost" onclick="goToStep(1)">← Back</button>
+          <button class="btn btn-primary" onclick="goToStep(3)">Next →</button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 3: Physical Description ═══ -->
+      <div class="step" id="step-3">
+        <div class="card-header">
+          <div class="step-eyebrow">Step 3 of 5</div>
+          <div class="card-title">Physical description</div>
+          <div class="card-subtitle">The more detail you provide, the better the AI matching works.</div>
+        </div>
+        <div class="card-body">
+          <div class="field-row">
+            <div class="field">
+              <label for="height">Height (cm)</label>
+              <input type="number" id="height" min="50" max="220" placeholder="e.g. 120" />
+            </div>
+            <div class="field">
+              <label for="weight">Weight (kg)</label>
+              <input type="number" id="weight" min="5" max="150" placeholder="e.g. 25" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Skin Tone</label>
+            <div class="chip-group" id="skin-chips">
+              <div class="chip" data-val="very_light">Very Light</div>
+              <div class="chip" data-val="light">Light</div>
+              <div class="chip" data-val="medium">Medium</div>
+              <div class="chip" data-val="dark">Dark</div>
+              <div class="chip" data-val="very_dark">Very Dark</div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="hair-color">Hair Color</label>
+              <input type="text" id="hair-color" placeholder="e.g. Black, Brown, Grey" />
+            </div>
+            <div class="field">
+              <label for="hair-style">Hair Style</label>
+              <input type="text" id="hair-style" placeholder="e.g. Short, Braided, Cornrows" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="eye-color">Eye Color</label>
+            <input type="text" id="eye-color" placeholder="e.g. Dark brown" />
+          </div>
+          <div class="field">
+            <label for="clothing">Clothing Description <span class="req">*</span></label>
+            <textarea id="clothing" placeholder="Describe exactly what the child was wearing when last seen — colour, type, any logos or patterns."></textarea>
+            <div class="field-error" id="err-clothing">Please describe what the child was wearing.</div>
+          </div>
+          <div class="field">
+            <label for="distinguishing">Distinguishing Features</label>
+            <textarea id="distinguishing" placeholder="Scars, birthmarks, tattoos, disabilities, or other identifying features."></textarea>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-ghost" onclick="goToStep(2)">← Back</button>
+          <button class="btn btn-primary" onclick="goToStep(4)">Next →</button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 4: Photo ═══ -->
+      <div class="step" id="step-4">
+        <div class="card-header">
+          <div class="step-eyebrow">Step 4 of 5</div>
+          <div class="card-title">Add a recent photo</div>
+          <div class="card-subtitle">Optional, but significantly improves AI matching accuracy.</div>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <div class="photo-drop" id="photo-drop">
+              <input type="file" id="photo-input" accept="image/*" capture="environment" />
+              <div class="photo-drop-icon">📷</div>
+              <div class="photo-drop-text">Tap to take a photo or choose from gallery</div>
+              <div class="photo-drop-sub">JPG, PNG or WEBP — max 5MB</div>
+            </div>
+            <div id="photo-preview"><img id="preview-img" src="" alt="Preview" /></div>
+            <div class="photo-clear" id="photo-clear" onclick="clearPhoto()">✕ Remove photo</div>
+          </div>
+          <div class="field" style="margin-top:24px; padding:18px; background:var(--teal-light); border-radius:10px;">
+            <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);margin-bottom:6px;">Privacy Notice</div>
+            <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;">
+              This photo is used <strong>only</strong> to generate similarity scores for human review. It is never used as a definitive identification and will be securely deleted when the case is resolved.
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-ghost" onclick="goToStep(3)">← Back</button>
+          <button class="btn btn-primary" onclick="goToStep(5)">Next →</button>
+        </div>
+      </div>
+
+      <!-- ═══ STEP 5: Review ═══ -->
+      <div class="step" id="step-5">
+        <div class="card-header">
+          <div class="step-eyebrow">Step 5 of 5</div>
+          <div class="card-title">Review & Submit</div>
+          <div class="card-subtitle">Please confirm all details before sending the alert.</div>
+        </div>
+        <div class="card-body" id="review-body">
+          <!-- Populated by JS -->
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-ghost" onclick="goToStep(4)">← Back</button>
+          <button class="btn btn-success" id="submit-btn" onclick="submitReport()">
+            🚨 Submit Alert
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ SUCCESS ═══ -->
+      <div id="success-screen">
+        <div class="success-icon">✓</div>
+        <div class="success-case" id="success-case-num"></div>
+        <div class="success-title">Alert Submitted</div>
+        <div class="success-body">
+          The report has been filed and coordinators have been notified. Targeted alerts are being sent to community members in the area.
+        </div>
+        <div class="success-offline-note" id="offline-success-note" style="display:none">
+          ⚠️ You are offline. This report has been saved to your device and will be automatically submitted once you are connected.
+        </div>
+        <button class="btn btn-ghost" style="margin-top:32px" onclick="location.href='/'">← Return to Home</button>
+      </div>
+
+    </div><!-- /card -->
+  </div><!-- /page-shell -->
+
+  <script>
+  // ─────────────────────────────────────────────────────────────
+  //  State
+  // ─────────────────────────────────────────────────────────────
+  const OFFLINE_QUEUE_KEY = 'lastseen_offline_queue';
+  const DRAFT_KEY         = 'lastseen_draft';
+
+  let currentStep = 1;
+  let mapInstance = null;
+  let mapMarker   = null;
+  let selectedGender   = '';
+  let selectedSkinTone = '';
+  let photoBase64 = null;
+  let photoFile   = null;
+
+  const formData = {
+    fullName: '', nickname: '', age: null, gender: '',
+    lastSeenAt: '', lastSeenLat: null, lastSeenLng: null,
+    lastSeenPlace: '', lastSeenNotes: '',
+    heightCm: null, weightKg: null, skinTone: '',
+    hairColor: '', hairStyle: '', eyeColor: '',
+    clothing: '', distinguishing: ''
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  //  Offline detection
+  // ─────────────────────────────────────────────────────────────
+  function setOnlineStatus() {
+    document.body.classList.toggle('offline', !navigator.onLine);
+  }
+  window.addEventListener('online',  () => { setOnlineStatus(); trySyncQueue(); });
+  window.addEventListener('offline', setOnlineStatus);
+  setOnlineStatus();
+
+  // ─────────────────────────────────────────────────────────────
+  //  Step navigation
+  // ─────────────────────────────────────────────────────────────
+  const STEP_LABELS = ['Identity','Last Seen','Description','Photo','Review'];
+  const PROGRESS_PCT = { 1:20, 2:40, 3:60, 4:80, 5:100 };
+
+  function goToStep(n) {
+    if (n > currentStep && !validateStep(currentStep)) return;
+    collectStep(currentStep);
+    showStep(n);
+  }
+
+  function showStep(n) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById(`step-${n}`).classList.add('active');
+
+    document.querySelectorAll('.progress-label').forEach(el => {
+      const s = parseInt(el.dataset.step);
+      el.classList.toggle('active', s === n);
+      el.classList.toggle('done', s < n);
+    });
+
+    document.getElementById('progress-fill').style.width = PROGRESS_PCT[n] + '%';
+    currentStep = n;
+
+    if (n === 2) initMap();
+    if (n === 5) renderReview();
+
+    saveDraft();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Validation
+  // ─────────────────────────────────────────────────────────────
+  function validateStep(n) {
+    let valid = true;
+    function check(id, errId, condition) {
+      const el = document.getElementById(id);
+      const err = document.getElementById(errId);
+      const fail = !condition;
+      if (el) el.classList.toggle('invalid', fail);
+      if (err) err.classList.toggle('visible', fail);
+      if (fail) valid = false;
+    }
+    if (n === 1) {
+      check('full-name', 'err-full-name', document.getElementById('full-name').value.trim().length > 1);
+      check('age', 'err-age', +document.getElementById('age').value >= 0 && +document.getElementById('age').value <= 17);
+      if (!selectedGender) {
+        document.getElementById('err-gender').classList.add('visible');
+        valid = false;
+      } else {
+        document.getElementById('err-gender').classList.remove('visible');
+      }
+    }
+    if (n === 2) {
+      check('last-seen-at', 'err-last-seen-at', document.getElementById('last-seen-at').value);
+      if (!formData.lastSeenLat) {
+        document.getElementById('err-map').classList.add('visible');
+        valid = false;
+      } else {
+        document.getElementById('err-map').classList.remove('visible');
+      }
+    }
+    if (n === 3) {
+      check('clothing', 'err-clothing', document.getElementById('clothing').value.trim().length > 3);
+    }
+    return valid;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Collect form values into state
+  // ─────────────────────────────────────────────────────────────
+  function collectStep(n) {
+    if (n === 1) {
+      formData.fullName  = document.getElementById('full-name').value.trim();
+      formData.nickname  = document.getElementById('nickname').value.trim();
+      formData.age       = parseInt(document.getElementById('age').value) || null;
+      formData.gender    = selectedGender;
+    }
+    if (n === 2) {
+      formData.lastSeenAt    = document.getElementById('last-seen-at').value;
+      formData.lastSeenPlace = document.getElementById('last-seen-place').value.trim();
+      formData.lastSeenNotes = document.getElementById('last-seen-notes').value.trim();
+    }
+    if (n === 3) {
+      formData.heightCm      = parseInt(document.getElementById('height').value) || null;
+      formData.weightKg      = parseInt(document.getElementById('weight').value) || null;
+      formData.skinTone      = selectedSkinTone;
+      formData.hairColor     = document.getElementById('hair-color').value.trim();
+      formData.hairStyle     = document.getElementById('hair-style').value.trim();
+      formData.eyeColor      = document.getElementById('eye-color').value.trim();
+      formData.clothing      = document.getElementById('clothing').value.trim();
+      formData.distinguishing= document.getElementById('distinguishing').value.trim();
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Chip selectors
+  // ─────────────────────────────────────────────────────────────
+  document.querySelectorAll('#gender-chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#gender-chips .chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      selectedGender = chip.dataset.val;
+      document.getElementById('err-gender').classList.remove('visible');
+    });
+  });
+
+  document.querySelectorAll('#skin-chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#skin-chips .chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      selectedSkinTone = chip.dataset.val;
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  //  Map (Leaflet + OpenStreetMap)
+  // ─────────────────────────────────────────────────────────────
+  function initMap() {
+    if (mapInstance) return;
+
+    // Default center: Accra, Ghana (representative African city)
+    const defaultCenter = [5.6037, -0.1870];
+
+    mapInstance = L.map('map', { zoomControl: true, attributionControl: false })
+      .setView(defaultCenter, 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap'
+    }).addTo(mapInstance);
+
+    // Custom pin icon
+    const pinIcon = L.divIcon({
+      html: `<div style="
+        width:32px;height:40px;
+        background:var(--amber, #E8541A);
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        border:3px solid #fff;
+        box-shadow:0 3px 12px rgba(0,0,0,.3);
+      "></div>`,
+      iconSize: [32, 40], iconAnchor: [16, 40], className: ''
+    });
+
+    mapInstance.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      setMapPin(lat, lng, pinIcon);
+    });
+
+    // Try geolocation
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        mapInstance.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      }, () => {});
+    }
+  }
+
+  function setMapPin(lat, lng, pinIcon) {
+    if (!pinIcon) {
+      pinIcon = L.divIcon({
+        html: `<div style="
+          width:32px;height:40px;
+          background:#E8541A;
+          border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);
+          border:3px solid #fff;
+          box-shadow:0 3px 12px rgba(0,0,0,.3);
+        "></div>`,
+        iconSize: [32,40], iconAnchor:[16,40], className:''
+      });
+    }
+    if (mapMarker) mapInstance.removeLayer(mapMarker);
+    mapMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(mapInstance);
+    formData.lastSeenLat = lat;
+    formData.lastSeenLng = lng;
+    document.getElementById('lat-display').value = lat.toFixed(6);
+    document.getElementById('lng-display').value = lng.toFixed(6);
+    document.getElementById('err-map').classList.remove('visible');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Photo handling
+  // ─────────────────────────────────────────────────────────────
+  document.getElementById('photo-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo must be under 5MB.');
+      return;
+    }
+    photoFile = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      photoBase64 = ev.target.result;
+      document.getElementById('preview-img').src = photoBase64;
+      document.getElementById('photo-preview').style.display = 'block';
+      document.getElementById('photo-clear').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const photoDrop = document.getElementById('photo-drop');
+  photoDrop.addEventListener('dragover', e => { e.preventDefault(); photoDrop.classList.add('drag-over'); });
+  photoDrop.addEventListener('dragleave', () => photoDrop.classList.remove('drag-over'));
+  photoDrop.addEventListener('drop', e => {
+    e.preventDefault(); photoDrop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) document.getElementById('photo-input').files = e.dataTransfer.files;
+  });
+
+  function clearPhoto() {
+    photoBase64 = null; photoFile = null;
+    document.getElementById('photo-input').value = '';
+    document.getElementById('photo-preview').style.display = 'none';
+    document.getElementById('photo-clear').style.display = 'none';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Review render
+  // ─────────────────────────────────────────────────────────────
+  function renderReview() {
+    collectStep(3);
+    const d = formData;
+    const fmt = (v) => v || '<span style="color:#999;font-style:italic">Not provided</span>';
+    const fmtDate = (v) => v ? new Date(v).toLocaleString() : fmt('');
+
+    document.getElementById('review-body').innerHTML = `
+      <div class="review-section">
+        <div class="review-section-title">Identity</div>
+        <div class="review-grid">
+          <div class="review-key">Full name</div><div class="review-val">${fmt(d.fullName)}</div>
+          <div class="review-key">Nickname</div><div class="review-val">${fmt(d.nickname)}</div>
+          <div class="review-key">Age</div><div class="review-val">${fmt(d.age !== null ? d.age + ' years' : '')}</div>
+          <div class="review-key">Gender</div><div class="review-val">${fmt(d.gender)}</div>
+        </div>
+      </div>
+      <div class="review-section">
+        <div class="review-section-title">Last Seen</div>
+        <div class="review-grid">
+          <div class="review-key">When</div><div class="review-val">${fmtDate(d.lastSeenAt)}</div>
+          <div class="review-key">Coordinates</div><div class="review-val">${d.lastSeenLat ? d.lastSeenLat.toFixed(5) + ', ' + d.lastSeenLng.toFixed(5) : fmt('')}</div>
+          <div class="review-key">Place</div><div class="review-val">${fmt(d.lastSeenPlace)}</div>
+          <div class="review-key">Notes</div><div class="review-val">${fmt(d.lastSeenNotes)}</div>
+        </div>
+      </div>
+      <div class="review-section">
+        <div class="review-section-title">Physical Description</div>
+        <div class="review-grid">
+          <div class="review-key">Height</div><div class="review-val">${fmt(d.heightCm ? d.heightCm + ' cm' : '')}</div>
+          <div class="review-key">Weight</div><div class="review-val">${fmt(d.weightKg ? d.weightKg + ' kg' : '')}</div>
+          <div class="review-key">Skin tone</div><div class="review-val">${fmt(d.skinTone)}</div>
+          <div class="review-key">Hair</div><div class="review-val">${fmt([d.hairColor, d.hairStyle].filter(Boolean).join(', '))}</div>
+          <div class="review-key">Eyes</div><div class="review-val">${fmt(d.eyeColor)}</div>
+          <div class="review-key">Clothing</div><div class="review-val">${fmt(d.clothing)}</div>
+          <div class="review-key">Distinguishing</div><div class="review-val">${fmt(d.distinguishing)}</div>
+        </div>
+      </div>
+      <div class="review-section">
+        <div class="review-section-title">Photo</div>
+        <div class="review-grid">
+          <div class="review-key">Status</div>
+          <div class="review-val">${photoBase64 ? '✓ Photo attached' : 'No photo provided'}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Draft persistence (auto-save)
+  // ─────────────────────────────────────────────────────────────
+  function saveDraft() {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        formData, selectedGender, selectedSkinTone, currentStep,
+        savedAt: new Date().toISOString()
+      }));
+    } catch(e) {}
+  }
+
+  function loadDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      Object.assign(formData, draft.formData);
+      selectedGender   = draft.selectedGender || '';
+      selectedSkinTone = draft.selectedSkinTone || '';
+
+      // Restore field values
+      if (formData.fullName)   document.getElementById('full-name').value = formData.fullName;
+      if (formData.nickname)   document.getElementById('nickname').value = formData.nickname;
+      if (formData.age)        document.getElementById('age').value = formData.age;
+      if (formData.lastSeenAt) document.getElementById('last-seen-at').value = formData.lastSeenAt;
+      if (formData.lastSeenPlace) document.getElementById('last-seen-place').value = formData.lastSeenPlace;
+      if (formData.lastSeenNotes) document.getElementById('last-seen-notes').value = formData.lastSeenNotes;
+      if (formData.clothing)   document.getElementById('clothing').value = formData.clothing;
+      if (formData.distinguishing) document.getElementById('distinguishing').value = formData.distinguishing;
+      if (formData.hairColor)  document.getElementById('hair-color').value = formData.hairColor;
+      if (formData.hairStyle)  document.getElementById('hair-style').value = formData.hairStyle;
+      if (formData.eyeColor)   document.getElementById('eye-color').value = formData.eyeColor;
+      if (formData.heightCm)   document.getElementById('height').value = formData.heightCm;
+      if (formData.weightKg)   document.getElementById('weight').value = formData.weightKg;
+
+      // Restore chips
+      if (selectedGender) {
+        document.querySelector(`#gender-chips [data-val="${selectedGender}"]`)?.classList.add('selected');
+      }
+      if (selectedSkinTone) {
+        document.querySelector(`#skin-chips [data-val="${selectedSkinTone}"]`)?.classList.add('selected');
+      }
+    } catch(e) {}
+  }
+
+  // Set default datetime to now
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('last-seen-at').value = now.toISOString().slice(0, 16);
+
+  ensureAuthenticated();
+  loadDraft();
+
+  // ─────────────────────────────────────────────────────────────
+  //  Submit
+  // ─────────────────────────────────────────────────────────────
+  async function submitReport() {
+    collectStep(4);
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    const payload = {
+      ...formData,
+      photoBase64: photoBase64 || null,
+      submittedAt: new Date().toISOString()
+    };
+
+    if (!navigator.onLine) {
+      saveToOfflineQueue(payload);
+      showSuccess(null, true);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = data.error || ('Server error ' + res.status);
+        if (res.status === 401) {
+          alert('Please log in before submitting a report.');
+          location.href = '/auth';
+          return;
+        }
+        alert(msg);
+        btn.disabled = false;
+        btn.textContent = '🚨 Submit Alert';
+        return;
+      }
+
+      const data = await res.json();
+      localStorage.removeItem(DRAFT_KEY);
+      showSuccess(data.caseNumber, false);
+    } catch (err) {
+      // Network failure mid-submit -> queue.
+      saveToOfflineQueue(payload);
+      showSuccess(null, true);
+    }
+  }
+
+  function showSuccess(caseNumber, isOffline) {
+    document.querySelector('.card-body, .card-header, .card-footer') // hide all card inner
+    document.getElementById('main-card').querySelectorAll('.step, .card-header, .card-body, .card-footer')
+      .forEach(el => el.style.display = 'none');
+    const ss = document.getElementById('success-screen');
+    ss.classList.add('show');
+    if (caseNumber) document.getElementById('success-case-num').textContent = 'Case #' + caseNumber;
+    if (isOffline) document.getElementById('offline-success-note').style.display = 'block';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Offline queue
+  // ─────────────────────────────────────────────────────────────
+  function saveToOfflineQueue(payload) {
+    try {
+      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+      queue.push({ id: Date.now(), payload, savedAt: new Date().toISOString() });
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    } catch(e) { console.error('Offline queue error', e); }
+  }
+
+  async function trySyncQueue() {
+    let queue;
+    try {
+      queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+    } catch(e) { return; }
+    if (!queue.length) return;
+
+    const failed = [];
+    for (const item of queue) {
+      try {
+        const res = await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item.payload)
+        });
+        if (res.status === 401 || res.status === 403 || res.status === 422) {
+          continue;
+        }
+        if (!res.ok) throw new Error('Server error');
+        console.log('[LastSeen] Synced offline report', item.id);
+      } catch (e) {
+        failed.push(item);
+      }
+    }
+
+    if (failed.length) {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failed));
+    } else {
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    }
+  }
+
+  // Try sync on load (in case user was offline before)
+  if (navigator.onLine) trySyncQueue();
+
+  async function ensureAuthenticated() {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) return;
+    } catch (_) {}
+    alert('Please log in or sign up before filing a report.');
+    location.href = '/auth';
+  }
+  </script>
+</body>
+</html>

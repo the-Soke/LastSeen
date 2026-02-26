@@ -1,0 +1,414 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anonymous Tip - LastSeen</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root {
+      --ink: #122236;
+      --ink-soft: #47607c;
+      --bg: #f3efe7;
+      --card: #fffdf9;
+      --line: rgba(18, 34, 54, 0.14);
+      --accent: #e3571a;
+      --accent-dark: #ba4210;
+      --ok: #116e59;
+      --err: #ad2f1d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Georgia, serif;
+    }
+    .shell {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 20px 14px 40px;
+    }
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .head {
+      padding: 18px 18px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    h1, h2 {
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    h1 { font-size: 30px; }
+    h2 { font-size: 22px; }
+    .sub {
+      margin-top: 6px;
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .body {
+      padding: 14px 18px 20px;
+      display: grid;
+      gap: 12px;
+    }
+    label {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-soft);
+    }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 15px;
+      font-family: Georgia, serif;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    .row {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+    }
+    #map {
+      height: 260px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #ddd4c7;
+    }
+    .map-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: #fff;
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .btn-primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .msg {
+      font-size: 14px;
+      margin-top: 6px;
+      min-height: 18px;
+      line-height: 1.4;
+    }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); }
+    .secret {
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .secret code {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      background: #f5f2ec;
+      border: 1px solid var(--line);
+      font-family: Consolas, monospace;
+    }
+    @media (max-width: 720px) {
+      .row { grid-template-columns: 1fr; }
+      h1 { font-size: 25px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="stack">
+      <div class="card">
+        <div class="head">
+          <h1>Anonymous Tip Submission</h1>
+          <div class="sub">No login and no phone number required. We generate a TipID and Secret Key so you can check status privately later.</div>
+        </div>
+
+        <form class="body" id="tip-form">
+          <div>
+            <label for="child-id">Child ID (attached automatically)</label>
+            <input id="child-id" name="childId" readonly required />
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="sighting-at">Time Of Sighting</label>
+              <input id="sighting-at" name="sightingAt" type="datetime-local" required />
+            </div>
+            <div>
+              <label for="confidence">Your Confidence</label>
+              <select id="confidence" name="confidence">
+                <option value="certain">Certain</option>
+                <option value="likely">Likely</option>
+                <option value="unsure" selected>Unsure</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label>Sighting Location (Map Picker)</label>
+            <div id="map"></div>
+            <div class="map-tools" style="margin-top:8px;">
+              <button class="btn" type="button" id="use-my-loc">Use My Current Location</button>
+              <span style="font-size:13px;color:var(--ink-soft)">Tap map to drop pin.</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="sighting-lat">Latitude</label>
+              <input id="sighting-lat" name="sightingLat" type="number" step="0.000001" required />
+            </div>
+            <div>
+              <label for="sighting-lng">Longitude</label>
+              <input id="sighting-lng" name="sightingLng" type="number" step="0.000001" required />
+            </div>
+          </div>
+
+          <div>
+            <label for="sighting-place">Place Description</label>
+            <input id="sighting-place" name="sightingPlace" maxlength="200" placeholder="Street, market, bus stop, etc." />
+          </div>
+
+          <div>
+            <label for="description">What Did You See? (clothing, direction of travel, companions)</label>
+            <textarea id="description" name="description" required></textarea>
+          </div>
+
+          <div>
+            <label for="photo">Optional Photo</label>
+            <input id="photo" name="photo" type="file" accept="image/*" />
+          </div>
+
+          <div class="actions">
+            <a class="btn" href="/auth">Log In / Sign Up</a>
+            <a class="btn" href="/feed">Back To Feed</a>
+            <a class="btn" href="/report">New Report</a>
+            <a class="btn" href="/resolve">Resolve Case</a>
+            <button class="btn btn-primary" id="submit-btn" type="submit">Submit Anonymous Tip</button>
+          </div>
+          <div class="msg" id="msg"></div>
+          <div id="secret-box" class="secret" style="display:none"></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="head">
+          <h2>Check If Your Tip Helped</h2>
+          <div class="sub">Enter the TipID and Secret Key you received when submitting.</div>
+        </div>
+        <form class="body" id="status-form">
+          <div class="row">
+            <div>
+              <label for="status-tip-id">TipID</label>
+              <input id="status-tip-id" required />
+            </div>
+            <div>
+              <label for="status-secret">Secret Key</label>
+              <input id="status-secret" required />
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">Check Status</button>
+          </div>
+          <div class="msg" id="status-msg"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('tip-form');
+    const msg = document.getElementById('msg');
+    const secretBox = document.getElementById('secret-box');
+    const statusForm = document.getElementById('status-form');
+    const statusMsg = document.getElementById('status-msg');
+
+    const params = new URLSearchParams(window.location.search);
+    const childId = params.get('childId') || params.get('caseId') || '';
+    const place = params.get('place') || '';
+    const lat = params.get('lat') || '';
+    const lng = params.get('lng') || '';
+
+    document.getElementById('child-id').value = childId;
+    document.getElementById('sighting-place').value = place;
+    if (lat) document.getElementById('sighting-lat').value = lat;
+    if (lng) document.getElementById('sighting-lng').value = lng;
+
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('sighting-at').value = now.toISOString().slice(0, 16);
+
+    const map = L.map('map').setView([6.5244, 3.3792], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+
+    let marker = null;
+
+    function setPoint(latVal, lngVal) {
+      document.getElementById('sighting-lat').value = Number(latVal).toFixed(6);
+      document.getElementById('sighting-lng').value = Number(lngVal).toFixed(6);
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([latVal, lngVal]).addTo(map);
+      map.setView([latVal, lngVal], Math.max(map.getZoom(), 14));
+    }
+
+    map.on('click', (e) => setPoint(e.latlng.lat, e.latlng.lng));
+
+    if (lat && lng) {
+      setPoint(Number(lat), Number(lng));
+    }
+
+    document.getElementById('use-my-loc').addEventListener('click', () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(pos => {
+        setPoint(pos.coords.latitude, pos.coords.longitude);
+      });
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.className = 'msg';
+      msg.textContent = '';
+      secretBox.style.display = 'none';
+
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      let photoBase64 = null;
+      const photoFile = document.getElementById('photo').files[0];
+      if (photoFile) {
+        photoBase64 = await fileToBase64(photoFile);
+      }
+
+      const sightingAtRaw = document.getElementById('sighting-at').value;
+      const payload = {
+        childId: document.getElementById('child-id').value.trim(),
+        sightingAt: new Date(sightingAtRaw).toISOString(),
+        sightingLat: Number(document.getElementById('sighting-lat').value),
+        sightingLng: Number(document.getElementById('sighting-lng').value),
+        sightingPlace: document.getElementById('sighting-place').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        confidence: document.getElementById('confidence').value,
+        photoBase64,
+      };
+
+      try {
+        const res = await fetch('/api/tips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Tip submission failed.');
+
+        msg.className = 'msg ok';
+        msg.textContent = 'Tip submitted successfully.';
+
+        secretBox.innerHTML =
+          `Save these now. You need both to check status later.<br>` +
+          `TipID: <code>${escapeHtml(data.tipId)}</code><br>` +
+          `Secret Key: <code>${escapeHtml(data.secretKey)}</code>`;
+        secretBox.style.display = 'block';
+
+        document.getElementById('status-tip-id').value = data.tipId;
+        document.getElementById('status-secret').value = data.secretKey;
+
+        form.reset();
+        document.getElementById('child-id').value = childId;
+        document.getElementById('sighting-place').value = place;
+        if (lat && lng) setPoint(Number(lat), Number(lng));
+      } catch (err) {
+        msg.className = 'msg err';
+        msg.textContent = err.message;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Anonymous Tip';
+      }
+    });
+
+    statusForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      statusMsg.className = 'msg';
+      statusMsg.textContent = '';
+
+      const tipId = document.getElementById('status-tip-id').value.trim();
+      const secretKey = document.getElementById('status-secret').value.trim();
+      try {
+        const res = await fetch(`/api/tips/status/${encodeURIComponent(tipId)}?secretKey=${encodeURIComponent(secretKey)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not fetch status.');
+
+        const helpedText = data.helped ? 'Yes, your tip contributed to action.' : 'Not yet. Your tip is still under review.';
+        statusMsg.className = 'msg ok';
+        statusMsg.textContent = `Status: ${data.reviewStatus}. ${helpedText}`;
+      } catch (err) {
+        statusMsg.className = 'msg err';
+        statusMsg.textContent = err.message;
+      }
+    });
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

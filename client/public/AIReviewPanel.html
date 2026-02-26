@@ -1,0 +1,1376 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Review - LastSeen Coordinator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet" />
+
+  <style>
+  /* â”€â”€â”€ TOKENS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  :root {
+    --bg:          #0B0F1A;
+    --surface:     #111827;
+    --surface2:    #1A2236;
+    --surface3:    #202D42;
+    --border:      rgba(255,255,255,.06);
+    --border2:     rgba(255,255,255,.11);
+    --text:        #E4E8F0;
+    --text-soft:   #94A3B8;
+    --muted:       #4B5563;
+
+    --amber:       #F59E0B;
+    --amber-glow:  rgba(245,158,11,.18);
+    --amber-ring:  rgba(245,158,11,.35);
+
+    --teal:        #2DD4BF;
+    --teal-dim:    rgba(45,212,191,.12);
+
+    --red:         #F87171;
+    --red-dim:     rgba(248,113,113,.12);
+    --red-ring:    rgba(248,113,113,.35);
+
+    --green:       #34D399;
+    --green-dim:   rgba(52,211,153,.12);
+
+    --yellow:      #FCD34D;
+    --yellow-dim:  rgba(252,211,77,.12);
+
+    --slate:       #64748B;
+    --slate-dim:   rgba(100,116,139,.12);
+
+    --mono: 'DM Mono', 'Courier New', monospace;
+    --serif: 'Fraunces', Georgia, serif;
+    --radius: 14px;
+    --radius-sm: 9px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: 15px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* â”€â”€â”€ LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+
+  /* â”€â”€â”€ SIDEBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh;
+    overflow-y: auto;
+  }
+
+  .sidebar-header {
+    padding: 28px 22px 22px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    font-family: var(--serif); font-weight: 700; font-size: 21px;
+    letter-spacing: -.04em; color: var(--text);
+  }
+  .logo em { font-style: normal; color: var(--amber); }
+  .logo-tag {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-top: 4px;
+  }
+
+  .nav-group { margin-top: 10px; }
+  .nav-label {
+    font-family: var(--mono); font-size: 9px; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); padding: 14px 22px 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 22px; cursor: pointer;
+    font-family: var(--mono); font-size: 12.5px; color: var(--text-soft);
+    border-left: 2px solid transparent;
+    transition: all .15s; text-decoration: none;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+  .nav-item.active {
+    color: var(--amber); border-left-color: var(--amber);
+    background: var(--amber-glow);
+  }
+  .nav-count {
+    margin-left: auto;
+    background: var(--amber); color: #000;
+    font-size: 10px; font-weight: 700; border-radius: 100px;
+    padding: 1px 7px; line-height: 1.6;
+  }
+  .nav-count.zero { background: var(--surface3); color: var(--muted); }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 16px 22px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+  }
+
+  /* â”€â”€â”€ MAIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .main { padding: 44px 52px; max-width: 1000px; }
+
+  .page-eyebrow {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--amber); margin-bottom: 8px;
+  }
+  .page-title {
+    font-family: var(--serif); font-weight: 700; font-size: 34px;
+    letter-spacing: -.05em; line-height: 1.1; margin-bottom: 6px;
+  }
+  .page-sub {
+    font-size: 15px; color: var(--text-soft);
+    font-style: italic; font-weight: 300; margin-bottom: 32px;
+  }
+
+  /* â”€â”€â”€ AI SAFETY BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .safety-banner {
+    display: flex; gap: 16px;
+    background: var(--amber-glow);
+    border: 1px solid var(--amber-ring);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    margin-bottom: 32px;
+  }
+  .safety-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .safety-body { font-size: 13px; color: var(--amber); line-height: 1.65; }
+  .safety-title {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: .08em; text-transform: uppercase;
+    display: block; margin-bottom: 4px;
+  }
+
+  /* â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .tab-bar {
+    display: flex; gap: 4px; margin-bottom: 30px;
+    background: var(--surface); border-radius: 10px;
+    padding: 4px; width: fit-content;
+    border: 1px solid var(--border);
+  }
+  .tab {
+    padding: 8px 22px; border-radius: 7px; border: none;
+    font-family: var(--mono); font-size: 12px; cursor: pointer;
+    color: var(--muted); background: transparent;
+    transition: all .18s; display: flex; align-items: center; gap: 8px;
+  }
+  .tab:hover { color: var(--text-soft); }
+  .tab.active { background: var(--surface2); color: var(--text); }
+  .tab .count {
+    background: var(--surface3); color: var(--text-soft);
+    font-size: 10px; border-radius: 100px; padding: 1px 7px;
+  }
+  .tab.active .count { background: var(--amber); color: #000; font-weight: 700; }
+
+  /* â”€â”€â”€ MEMORY MATCH INPUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .match-input-block {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 24px;
+  }
+  .match-input-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--teal); margin-bottom: 10px;
+  }
+  .match-textarea {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border2); border-radius: var(--radius-sm);
+    color: var(--text); font-family: var(--serif); font-size: 14px;
+    padding: 14px 16px; resize: vertical; min-height: 100px;
+    line-height: 1.65; outline: none;
+    transition: border-color .2s;
+  }
+  .match-textarea:focus { border-color: var(--teal); }
+  .match-textarea::placeholder { color: var(--muted); font-style: italic; }
+  .match-actions {
+    display: flex; align-items: center; gap: 12px; margin-top: 12px;
+  }
+  .btn-run {
+    background: var(--teal); color: #0B1A18;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    padding: 10px 22px; border-radius: var(--radius-sm); border: none;
+    cursor: pointer; transition: all .18s; letter-spacing: .03em;
+  }
+  .btn-run:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-run:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .match-hint {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    font-style: italic;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .input-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+  }
+  .input-control {
+    width: 100%;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .input-control:focus {
+    outline: none;
+    border-color: var(--teal);
+  }
+  .status-line {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-height: 14px;
+  }
+  .status-line.error { color: var(--red); }
+  .status-line.ok { color: var(--green); }
+
+  /* â”€â”€â”€ CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .cards-list { display: flex; flex-direction: column; gap: 20px; }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    animation: cardIn .35s cubic-bezier(.25,.46,.45,.94) both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Top row: photo + case info + score */
+  .card-header {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 18px; align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 100%);
+  }
+
+  .case-avatar {
+    width: 60px; height: 60px; border-radius: 10px;
+    background: var(--surface3);
+    border: 2px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; flex-shrink: 0; overflow: hidden;
+  }
+  .case-avatar img {
+    width: 100%; height: 100%; object-fit: cover;
+    border-radius: 8px;
+  }
+
+  .case-meta { min-width: 0; }
+  .meta-case-num {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 3px;
+  }
+  .meta-name {
+    font-family: var(--serif); font-weight: 600; font-size: 18px;
+    letter-spacing: -.025em; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .meta-when {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 3px;
+  }
+
+  /* Score widget */
+  .score-col { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+
+  .score-pill {
+    display: flex; align-items: baseline; gap: 6px;
+    padding: 7px 16px; border-radius: 100px;
+    border: 1px solid transparent;
+  }
+  .score-pill.tier-strong  { background: var(--amber-glow); border-color: var(--amber-ring); }
+  .score-pill.tier-possible{ background: var(--yellow-dim);  border-color: rgba(252,211,77,.3); }
+  .score-pill.tier-partial { background: var(--slate-dim);   border-color: rgba(100,116,139,.25); }
+  .score-pill.tier-low     { background: var(--slate-dim);   border-color: rgba(100,116,139,.2); }
+
+  .score-num {
+    font-family: var(--mono); font-size: 26px; font-weight: 500;
+    letter-spacing: -.03em; line-height: 1;
+  }
+  .tier-strong  .score-num  { color: var(--amber); }
+  .tier-possible .score-num { color: var(--yellow); }
+  .tier-partial .score-num, .tier-low .score-num { color: var(--text-soft); }
+
+  .score-unit { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .score-label-tag {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .04em;
+  }
+  .tier-strong  .score-label-tag { color: var(--amber); }
+  .tier-possible .score-label-tag { color: var(--yellow); }
+  .tier-partial .score-label-tag, .tier-low .score-label-tag { color: var(--muted); }
+
+  /* â”€â”€â”€ PULSING "NEEDS REVIEW" BADGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .review-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--red-dim);
+    border: 1px solid var(--red-ring);
+    border-radius: 100px;
+    padding: 3px 11px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--red);
+  }
+  .review-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1.5s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: .4; transform: scale(.8); }
+  }
+
+  /* â”€â”€â”€ CARD BODY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .card-body { padding: 22px 24px; }
+
+  /* Score meter */
+  .ai-prediction-line {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .ai-pred-label {
+    font-family: var(--mono); font-size: 12px; color: var(--text-soft);
+  }
+  .ai-pred-label strong { color: var(--text); }
+  .ai-pred-needs {
+    font-family: var(--mono); font-size: 11px;
+    font-style: italic; color: var(--red);
+  }
+
+  .meter-track {
+    height: 6px; background: var(--surface3);
+    border-radius: 3px; overflow: hidden; margin-bottom: 6px;
+  }
+  .meter-fill {
+    height: 100%; border-radius: 3px; width: 0;
+    transition: width 1s cubic-bezier(.25,.46,.45,.94) .2s;
+  }
+  .meter-fill.tier-strong  { background: linear-gradient(90deg, #D97706, var(--amber)); }
+  .meter-fill.tier-possible{ background: linear-gradient(90deg, #B45309, var(--yellow)); }
+  .meter-fill.tier-partial,
+  .meter-fill.tier-low     { background: linear-gradient(90deg, #374151, var(--slate)); }
+
+  .meter-ticks {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 9px; color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  /* Tech note */
+  .tech-note {
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    line-height: 1.65; border-left: 3px solid var(--border2);
+    margin-bottom: 18px;
+  }
+  .tech-note strong { color: var(--text-soft); }
+
+  /* Witness description */
+  .desc-block {
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 14px 16px; margin-bottom: 16px;
+    font-size: 14px; font-style: italic; color: var(--text-soft);
+    line-height: 1.7; border-left: 3px solid var(--teal);
+  }
+  .desc-block .hl {
+    background: rgba(45,212,191,.18); color: var(--teal);
+    border-radius: 3px; padding: 0 3px; font-style: normal;
+    font-weight: 600;
+  }
+
+  /* Field chips */
+  .field-grid {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px;
+  }
+  .field-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 80px;
+  }
+  .chip-field-name {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .chip-score {
+    font-family: var(--mono); font-size: 16px; font-weight: 500;
+    line-height: 1.2;
+  }
+  .chip-score.high { color: var(--green); }
+  .chip-score.mid  { color: var(--yellow); }
+  .chip-score.low  { color: var(--muted); }
+  .chip-conf {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    font-style: italic;
+  }
+
+  /* â”€â”€â”€ PHOTO COMPARISON (facial) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .photo-compare {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 16px; align-items: center; margin-bottom: 18px;
+  }
+  .photo-box {
+    background: var(--surface2); border-radius: var(--radius-sm);
+    border: 1px solid var(--border2); padding: 12px;
+    text-align: center;
+  }
+  .photo-box-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+  }
+  .photo-box-img {
+    width: 80px; height: 80px; border-radius: 8px;
+    object-fit: cover; background: var(--surface3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin: 0 auto;
+  }
+  .photo-compare-arrow {
+    font-family: var(--mono); font-size: 20px; color: var(--muted);
+    text-align: center;
+  }
+
+  /* â”€â”€â”€ ACTION BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .action-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .action-label {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-right: 4px; flex-shrink: 0;
+  }
+  .btn-action {
+    padding: 8px 16px; border-radius: var(--radius-sm); border: none;
+    font-family: var(--mono); font-size: 12px; cursor: pointer;
+    transition: all .18s; font-weight: 500; letter-spacing: .02em;
+  }
+  .btn-confirm { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
+  .btn-confirm:hover { background: rgba(52,211,153,.22); }
+  .btn-inconc  { background: var(--slate-dim);  color: var(--text-soft); border: 1px solid var(--border2); }
+  .btn-inconc:hover { background: rgba(100,116,139,.22); }
+  .btn-reject  { background: var(--red-dim);    color: var(--red); border: 1px solid var(--red-ring); }
+  .btn-reject:hover { background: rgba(248,113,113,.2); }
+  .btn-view    { margin-left: auto; background: transparent; color: var(--text-soft); border: 1px solid var(--border2); }
+  .btn-view:hover { color: var(--text); border-color: var(--border2); }
+  .btn-action:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* â”€â”€â”€ VERDICT BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .verdict-banner {
+    padding: 12px 24px;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    letter-spacing: .04em; display: none;
+  }
+  .verdict-banner.confirmed { display: block; background: var(--green-dim); color: var(--green); }
+  .verdict-banner.rejected  { display: block; background: var(--red-dim);   color: var(--red); }
+  .verdict-banner.inconclusive { display: block; background: var(--slate-dim); color: var(--text-soft); }
+
+  /* â”€â”€â”€ EMPTY STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .empty-state {
+    text-align: center; padding: 60px 24px;
+    border: 1px dashed var(--border2); border-radius: var(--radius);
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-text { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+  /* â”€â”€â”€ LOADING SKELETON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 6px;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* â”€â”€â”€ SECTION HIDDEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .tab-section { display: none; }
+  .tab-section.active { display: block; }
+
+  /* â”€â”€â”€ RESPONSIVE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  @media (max-width: 720px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main { padding: 24px 20px; }
+    .card-header { grid-template-columns: 48px 1fr; }
+    .score-col { display: none; }
+    .photo-compare { grid-template-columns: 1fr; }
+  }
+  </style>
+</head>
+
+<body>
+<div class="shell">
+
+  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• SIDEBAR â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Last<em>Seen</em></div>
+      <div class="logo-tag">Coordinator Dashboard</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Navigation</div>
+      <a class="nav-item" href="/feed">Active Cases</a>
+      <a class="nav-item" href="/auth">Log In</a>
+      <a class="nav-item" href="/report">New Report</a>
+      <a class="nav-item" href="/resolve">Resolve Case</a>
+      <a class="nav-item" href="/tip">Tip Queue</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">AI Review</div>
+      <a class="nav-item active" href="/ai">
+        Review Queue
+        <span class="nav-count" id="nav-count-total">...</span>
+      </a>
+      <a class="nav-item" href="/ai">Review History</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">System</div>
+      <a class="nav-item" href="/feed">Settings</a>
+    </div>
+
+    <div class="sidebar-footer">
+      Model: SSD MobileNet + FaceNet<br />
+      NLP: Jaro-Winkler + Porter Stemmer<br />
+      All results require human verification.
+    </div>
+  </aside>
+
+  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• MAIN â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <main class="main">
+
+    <div class="page-eyebrow">AI Assistive Analysis - Human Review Required</div>
+    <h1 class="page-title">AI Review Queue</h1>
+    <p class="page-sub">Similarity scores and description matches generated by the AI layer. Every item below requires a human decision before it can affect a case.</p>
+
+    <!-- Safety banner â€” always visible -->
+    <div class="safety-banner">
+      <div class="safety-icon">!</div>
+      <div class="safety-body">
+        <strong class="safety-title">Assistive AI Only - Not Identification</strong>
+        Scores are generated by computer vision and NLP models and represent
+        <em>statistical similarity</em>, not identity confirmation.
+        A 95% score does <strong>not</strong> mean it is the same person.
+        Every result must be reviewed in context. No action should be taken based
+        on AI output alone. When in doubt, mark as <strong>Inconclusive</strong>.
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab active" id="tab-facial" onclick="switchTab('facial')">
+        Facial Scores
+        <span class="count" id="tab-facial-count">...</span>
+      </button>
+      <button class="tab" id="tab-memory" onclick="switchTab('memory')">
+        Description Match
+        <span class="count" id="tab-memory-count">...</span>
+      </button>
+    </div>
+
+    <!-- â”€â”€ FACIAL TAB â”€â”€ -->
+    <div class="tab-section active" id="section-facial">
+      <div class="match-input-block">
+        <div class="match-input-label">Run a Live Facial Compare</div>
+        <div class="form-row">
+          <div>
+            <label class="input-label" for="facial-case">Active Case</label>
+            <select class="input-control" id="facial-case"></select>
+          </div>
+          <div>
+            <label class="input-label" for="facial-photo">Query Photo</label>
+            <input class="input-control" id="facial-photo" type="file" accept="image/*" />
+          </div>
+          <button class="btn-run" id="facial-run-btn" onclick="runFacialCompare()">Run Compare</button>
+        </div>
+        <div class="status-line" id="facial-status"></div>
+      </div>
+      <div class="cards-list" id="facial-cards">
+        <!-- Skeleton loader -->
+        <div class="result-card">
+          <div class="card-header" style="gap:18px">
+            <div class="case-avatar skeleton" style="width:60px;height:60px"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <div class="skeleton" style="height:12px;width:30%"></div>
+              <div class="skeleton" style="height:18px;width:55%"></div>
+              <div class="skeleton" style="height:11px;width:40%"></div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="skeleton" style="height:6px;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:6px;width:80%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- â”€â”€ MEMORY TAB â”€â”€ -->
+    <div class="tab-section" id="section-memory">
+
+      <!-- Live input -->
+      <div class="match-input-block">
+        <div class="match-input-label">Run a Live Description Match</div>
+        <textarea
+          class="match-textarea"
+          id="desc-input"
+          placeholder="Enter a witness description here... e.g. 'I saw a young boy, around 9 years old, dark skin, wearing a red shirt and black trousers, near the central market around 3pm'"
+        ></textarea>
+        <div class="match-actions">
+          <button class="btn-run" id="run-btn" onclick="runMemoryMatch()">
+            Run Match Against Active Cases
+          </button>
+          <span class="match-hint">Matches will appear below and be saved for coordinator review.</span>
+        </div>
+      </div>
+
+      <div class="cards-list" id="memory-cards">
+        <div class="empty-state">
+          <div class="empty-icon">[]</div>
+          <div class="empty-text">Enter a witness description above to run a live match, or pending matches from tips will appear here automatically.</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Helpers
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function tier(score) {
+  if (score >= 75) return 'tier-strong';
+  if (score >= 50) return 'tier-possible';
+  if (score >= 30) return 'tier-partial';
+  return 'tier-low';
+}
+function tierLabel(score) {
+  if (score >= 75) return 'Strong Match';
+  if (score >= 50) return 'Possible Match';
+  if (score >= 30) return 'Partial Match';
+  return 'Low Similarity';
+}
+function ago(iso) {
+  if (!iso) return '';
+  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Tab switching
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('section-' + name).classList.add('active');
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Card rendering
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function facialCard(item, i) {
+  const s = item.similarity_score ?? item.similarityScore ?? 0;
+  const t = tier(s);
+  const l = tierLabel(s);
+  const id = item.id;
+  const delay = i * 90;
+
+  return `
+  <div class="result-card" id="card-${id}" style="animation-delay:${delay}ms">
+    <div class="card-header">
+      <div class="case-avatar">
+        ${item.photo_url
+          ? `<img src="${item.photo_url}" alt="Reference photo" />`
+          : 'User'}
+      </div>
+      <div class="case-meta">
+        <div class="meta-case-num">${item.case_number || '-'} - Facial Comparison</div>
+        <div class="meta-name">${item.full_name || 'Unknown'}</div>
+        <div class="meta-when">Computed ${ago(item.computed_at)} - ${item.model_version || 'ssd-facenet-v1'} - Source: ${item.source_type || 'photo'}</div>
+      </div>
+      <div class="score-col">
+        <div class="score-pill ${t}">
+          <span class="score-num">${s}</span>
+          <span class="score-unit">%</span>
+        </div>
+        <div class="score-label-tag ${t}">${l}</div>
+        <div class="review-badge">
+          <span class="review-dot"></span>
+          Needs Human Review
+        </div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- AI Prediction line -->
+      <div class="ai-prediction-line">
+        <span class="ai-pred-label">
+          AI Prediction: <strong>${s}% ${l}</strong> - Needs Human Review
+        </span>
+        <span class="ai-pred-needs">Not an identification</span>
+      </div>
+
+      <!-- Meter -->
+      <div class="meter-track">
+        <div class="meter-fill ${t}" data-target="${s}" style="width:0%"></div>
+      </div>
+      <div class="meter-ticks">
+        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+      </div>
+
+      <!-- Photo comparison area -->
+      <div class="photo-compare">
+        <div class="photo-box">
+          <div class="photo-box-label">Reference (Report)</div>
+          <div class="photo-box-img">
+            ${item.photo_url
+              ? `<img src="${item.photo_url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px" />`
+              : 'No Photo'}
+          </div>
+        </div>
+        <div class="photo-compare-arrow">vs<br/><span style="font-size:11px;display:block;margin-top:4px;color:var(--muted)">similarity</span></div>
+        <div class="photo-box">
+          <div class="photo-box-label">Query (Witness / Tip)</div>
+          <div class="photo-box-img">
+            ${item.query_photo_url
+              ? `<img src="${item.query_photo_url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px" />`
+              : 'Query'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical context note -->
+      <div class="tech-note">
+        <strong>How this score was generated:</strong> Euclidean distance between two 128-dimensional
+        FaceNet descriptor vectors. Distance was mapped to a 0-100 scale.
+        A score >= 75 means the face detectors found similar geometric features - it does <strong>not</strong> confirm identity.
+        Always compare images manually before taking action.
+      </div>
+    </div>
+
+    <div class="action-bar" id="ab-${id}">
+      <span class="action-label">Your verdict:</span>
+      <button class="btn-action btn-confirm" onclick="verify('facial','${id}','confirmed_match')">
+        Confirmed Match
+      </button>
+      <button class="btn-action btn-inconc"  onclick="verify('facial','${id}','inconclusive')">
+        ? Inconclusive
+      </button>
+      <button class="btn-action btn-reject"  onclick="verify('facial','${id}','rejected')">
+        Reject
+      </button>
+      <a class="btn-action btn-view" href="/feed?caseId=${item.case_id || id}">
+        View Case ->
+      </a>
+    </div>
+    <div class="verdict-banner" id="vb-${id}"></div>
+  </div>`;
+}
+
+function memoryCard(item, i) {
+  const s   = item.match_score ?? item.matchScore ?? 0;
+  const t   = tier(s);
+  const l   = tierLabel(s);
+  const id  = item.id || ('live-' + i);
+  const desc = item.raw_description || item.rawDescription || '';
+  const parsed = item.parsedFeatures || {};
+  const fields = item.matched_fields || item.matchedFields || {};
+  const delay  = i * 90;
+
+  return `
+  <div class="result-card" id="card-${id}" style="animation-delay:${delay}ms">
+    <div class="card-header">
+      <div class="case-avatar">Text</div>
+      <div class="case-meta">
+        <div class="meta-case-num">${item.case_number || item.caseNumber || '-'} - Description Match</div>
+        <div class="meta-name">${item.full_name || item.fullName || '-'}</div>
+        <div class="meta-when">${item.computed_at ? 'Matched ' + ago(item.computed_at) : 'Live result'} - keyword-jaro-winkler-v1</div>
+      </div>
+      <div class="score-col">
+        <div class="score-pill ${t}">
+          <span class="score-num">${s}</span>
+          <span class="score-unit">%</span>
+        </div>
+        <div class="score-label-tag ${t}">${l}</div>
+        <div class="review-badge">
+          <span class="review-dot"></span>
+          Needs Human Review
+        </div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- AI prediction label -->
+      <div class="ai-prediction-line">
+        <span class="ai-pred-label">
+          AI Prediction: <strong>${s}% ${l}</strong> - Needs Human Review
+        </span>
+        <span class="ai-pred-needs">Assistive only</span>
+      </div>
+
+      <!-- Meter -->
+      <div class="meter-track">
+        <div class="meter-fill ${t}" data-target="${s}" style="width:0%"></div>
+      </div>
+      <div class="meter-ticks">
+        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+      </div>
+
+      <!-- Highlighted witness description -->
+      ${desc ? `
+      <div class="desc-block">
+        "${highlightDesc(desc, parsed)}"
+      </div>` : ''}
+
+      <!-- Per-field breakdown chips -->
+      ${Object.keys(fields).length ? `
+      <div class="field-grid">
+        ${fieldChips(fields)}
+      </div>` : ''}
+    </div>
+
+    <div class="action-bar" id="ab-${id}">
+      <span class="action-label">Your verdict:</span>
+      <button class="btn-action btn-confirm" onclick="verify('memory','${id}','confirmed_match')">
+        Useful Lead
+      </button>
+      <button class="btn-action btn-inconc"  onclick="verify('memory','${id}','inconclusive')">
+        ? Inconclusive
+      </button>
+      <button class="btn-action btn-reject"  onclick="verify('memory','${id}','rejected')">
+        Reject
+      </button>
+      <a class="btn-action btn-view" href="/feed?caseId=${item.caseId || item.case_id || id}">
+        View Case ->
+      </a>
+    </div>
+    <div class="verdict-banner" id="vb-${id}"></div>
+  </div>`;
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Field chips for memory matches
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const FIELD_NAMES = {
+  gender: 'Gender', age: 'Age', clothing: 'Clothing',
+  skinTone: 'Skin Tone', hair: 'Hair', location: 'Location'
+};
+
+function fieldChips(fields) {
+  return Object.entries(fields).map(([key, f]) => {
+    const pct = Math.round((f.score || 0) * 100);
+    const cls = pct >= 70 ? 'high' : pct >= 40 ? 'mid' : 'low';
+    const detail = f.parsedAge
+      ? `Est. ${f.parsedAge}yo`
+      : (f.confidence || '');
+    return `
+      <div class="field-chip">
+        <div class="chip-field-name">${FIELD_NAMES[key] || key}</div>
+        <div class="chip-score ${cls}">${pct}%</div>
+        <div class="chip-conf">${detail}</div>
+      </div>`;
+  }).join('');
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Highlight matched terms in witness description
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function highlightDesc(text, parsed) {
+  let out = escapeHtml(text);
+  const terms = [];
+
+  if (parsed.clothing) {
+    parsed.clothing.forEach(c => {
+      if (c.item)   terms.push(c.item);
+      if (c.colour) terms.push(c.colour);
+    });
+  }
+  if (Array.isArray(parsed.hair))   parsed.hair.forEach(h => terms.push(h));
+  if (parsed.skinTone) terms.push(parsed.skinTone.replace('_', ' '));
+  if (parsed.gender)   terms.push(parsed.gender === 'male' ? 'boy' : 'girl');
+  if (parsed.age)      terms.push(String(parsed.age));
+  if (Array.isArray(parsed.location)) parsed.location.forEach(l => terms.push(l));
+
+  // Sort longest first to avoid partial overlaps
+  terms
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .forEach(term => {
+      const safe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`\\b(${safe})\\b`, 'gi');
+      out = out.replace(re, '<span class="hl">$1</span>');
+    });
+
+  return out;
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Animate meters after render
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function animateMeters() {
+  // rAF gives browser a frame to paint the 0% state first
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.meter-fill[data-target]').forEach(el => {
+        el.style.width = el.dataset.target + '%';
+      });
+    });
+  });
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Render helpers
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function renderFacialCards(items) {
+  const container = document.getElementById('facial-cards');
+  if (!items.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">OK</div>
+        <div class="empty-text">No facial similarity scores awaiting review. Check back after new reports come in.</div>
+      </div>`;
+    return;
+  }
+  container.innerHTML = items.map(facialCard).join('');
+  animateMeters();
+}
+
+function renderMemoryCards(items) {
+  const container = document.getElementById('memory-cards');
+  if (!items.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">[]</div>
+        <div class="empty-text">No description matches awaiting review. Enter a witness description above to run a live match.</div>
+      </div>`;
+    return;
+  }
+  container.innerHTML = items.map(memoryCard).join('');
+  animateMeters();
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Human verification action
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+async function verify(type, id, outcome) {
+  const ab = document.getElementById('ab-' + id);
+  const vb = document.getElementById('vb-' + id);
+  if (!ab || !vb) return;
+
+  // Disable all buttons immediately
+  ab.querySelectorAll('.btn-action').forEach(b => {
+    b.disabled = true;
+    b.style.opacity = '.4';
+  });
+
+  const msgs = {
+    confirmed_match: 'Verified - Case activity log updated. Stakeholders notified.',
+    rejected:        'Rejected - Removed from active review queue.',
+    inconclusive:    'Marked Inconclusive - Archived for reference.',
+  };
+  const cls = {
+    confirmed_match: 'confirmed',
+    rejected:        'rejected',
+    inconclusive:    'inconclusive',
+  };
+
+  let ok = false;
+  let failMsg = 'Verification failed. Please try again.';
+  try {
+    const res = await fetch(`/api/ai/verify/${type}/${id}`, {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ outcome }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      failMsg = data.error || failMsg;
+      throw new Error(failMsg);
+    }
+    ok = true;
+  } catch (err) {
+    console.warn('[Verify] Failed:', err.message);
+  }
+
+  if (!ok) {
+    vb.textContent = failMsg;
+    vb.className = 'verdict-banner rejected';
+    ab.querySelectorAll('.btn-action').forEach(b => {
+      b.disabled = false;
+      b.style.opacity = '1';
+    });
+    return;
+  }
+
+  vb.textContent = msgs[outcome];
+  vb.className = 'verdict-banner ' + cls[outcome];
+  ab.style.display = 'none';
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Live memory match (calls backend, falls back to client-side)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+async function runMemoryMatch() {
+  const desc = document.getElementById('desc-input').value.trim();
+  if (desc.length < 10) {
+    alert('Please enter at least 10 characters to run a match.');
+    return;
+  }
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Matching...';
+
+  try {
+    const res = await fetch('/api/ai/memory-match', {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ description: desc }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results?.length) {
+        renderMemoryCards(data.results);
+        btn.disabled    = false;
+        btn.textContent = 'Run Match Against Active Cases';
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('[MemoryMatch] API unavailable, using client-side fallback');
+  }
+
+  // Client-side fallback (demo mode â€” no backend required)
+  renderMemoryCards(clientSideMatch(desc));
+  btn.disabled    = false;
+  btn.textContent = 'Run Match Against Active Cases';
+}
+
+function setFacialStatus(message, cls = '') {
+  const el = document.getElementById('facial-status');
+  if (!el) return;
+  el.textContent = message || '';
+  el.className = `status-line ${cls}`.trim();
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result || '');
+      const parts = value.split(',');
+      resolve(parts.length > 1 ? parts[1] : value);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadFacialTargets() {
+  const select = document.getElementById('facial-case');
+  if (!select) return;
+  select.innerHTML = '<option value="">Loading active cases...</option>';
+
+  try {
+    const res = await fetch('/api/reports?status=active&limit=100&offset=0', { credentials: 'include' });
+    if (!res.ok) throw new Error(`Failed to load cases (${res.status})`);
+    const data = await res.json();
+    const items = data.items || data.results || data.cases || [];
+
+    if (!items.length) {
+      select.innerHTML = '<option value="">No active cases found</option>';
+      return;
+    }
+
+    select.innerHTML = '<option value="">Select a case...</option>' + items.map((c) => {
+      const caseId = c.id || c.case_id;
+      const caseNo = c.case_number || c.caseNumber || 'Case';
+      const name = c.full_name || c.fullName || c.child_name || c.name || 'Unknown';
+      return `<option value="${caseId}" data-case-number="${caseNo}" data-name="${name}" data-photo="${c.photo_url || c.primary_photo_url || ''}">${caseNo} - ${name}</option>`;
+    }).join('');
+  } catch (err) {
+    select.innerHTML = '<option value="">Unable to load cases</option>';
+    setFacialStatus(err.message, 'error');
+  }
+}
+
+async function runFacialCompare() {
+  const select = document.getElementById('facial-case');
+  const input = document.getElementById('facial-photo');
+  const btn = document.getElementById('facial-run-btn');
+  const selected = select?.selectedOptions?.[0];
+  const caseId = select?.value;
+  const file = input?.files?.[0];
+
+  if (!caseId) {
+    setFacialStatus('Select an active case first.', 'error');
+    return;
+  }
+  if (!file) {
+    setFacialStatus('Choose a photo to compare.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Comparing...';
+  setFacialStatus('Running facial comparison...');
+
+  try {
+    const queryPhotoBase64 = await fileToBase64(file);
+    const res = await fetch('/api/ai/facial-compare', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caseId, queryPhotoBase64, sourceType: 'new_upload' }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const apiMsg = data.error || data.message || `Facial compare failed (${res.status})`;
+      throw new Error(apiMsg);
+    }
+
+    const scoreRaw = Number(data.similarityScore ?? data.score ?? 0);
+    const item = {
+      id: data.scoreId || `live-facial-${Date.now()}`,
+      case_id: caseId,
+      case_number: selected?.dataset?.caseNumber || 'Live Case',
+      full_name: selected?.dataset?.name || 'Unknown',
+      similarity_score: Math.max(0, Math.min(100, Math.round(scoreRaw))),
+      computed_at: new Date().toISOString(),
+      model_version: 'ssd-facenet-v1',
+      source_type: 'manual_upload',
+      photo_url: selected?.dataset?.photo || '',
+      query_photo_url: URL.createObjectURL(file),
+    };
+
+    const container = document.getElementById('facial-cards');
+    const hasEmpty = container.querySelector('.empty-state');
+    if (hasEmpty) {
+      container.innerHTML = facialCard(item, 0);
+    } else {
+      container.insertAdjacentHTML('afterbegin', facialCard(item, 0));
+    }
+    animateMeters();
+
+    const facialCountEl = document.getElementById('tab-facial-count');
+    const memoryCountEl = document.getElementById('tab-memory-count');
+    const navTotalEl = document.getElementById('nav-count-total');
+    const facialCount = Number(facialCountEl.textContent || 0) + 1;
+    const memoryCount = Number(memoryCountEl.textContent || 0);
+    facialCountEl.textContent = String(facialCount);
+    navTotalEl.textContent = String(facialCount + memoryCount);
+
+    setFacialStatus(`Compare complete. Similarity score: ${item.similarity_score}%`, 'ok');
+    input.value = '';
+  } catch (err) {
+    const msg = /FACE_API_UNAVAILABLE/.test(err.message)
+      ? 'Face API is unavailable on server. Install AI deps and restart API.'
+      : err.message;
+    setFacialStatus(msg, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run Compare';
+  }
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Client-side fallback matcher (demo / offline)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function clientSideMatch(desc) {
+  const l = desc.toLowerCase();
+
+  const COLOURS = ['red','blue','green','yellow','black','white','grey','gray','brown','orange','pink','navy'];
+  const CLOTHES  = ['shirt','hoodie','jacket','trouser','trousers','jeans','jean','dress','uniform','shorts','skirt','top','blouse','vest'];
+  const HAIR_T   = ['short','long','braided','afro','curly','cornrow','dreadlock','natural','ponytail'];
+
+  const parsedGender   = l.includes('girl') ? 'female' : l.includes('boy') ? 'male' : null;
+  const ageMatch       = l.match(/\b(\d{1,2})\s*(?:year|yo)/i);
+  const parsedAge      = ageMatch ? parseInt(ageMatch[1]) : null;
+  const parsedSkin     = l.includes('very dark') ? 'very_dark'
+                       : l.includes('dark')       ? 'dark'
+                       : l.includes('very light') ? 'very_light'
+                       : l.includes('light')      ? 'light'
+                       : l.includes('medium')||l.includes('brown') ? 'medium' : null;
+  const parsedClothing = CLOTHES.filter(c => l.includes(c))
+    .map(c => ({ item: c, colour: COLOURS.find(co => l.includes(co)) || null }));
+  const parsedHair     = HAIR_T.filter(h => l.includes(h));
+  const parsedLocation = l.includes('market')  ? ['market']
+                       : l.includes('school')  ? ['school']
+                       : l.includes('church')  ? ['church']
+                       : l.includes('mosque')  ? ['mosque'] : null;
+
+  // Naive scoring
+  let score = 20;
+  if (parsedGender)           score += 15;
+  if (parsedAge !== null)     score += 12;
+  if (parsedSkin)             score += 10;
+  if (parsedClothing.length)  score += Math.min(25, parsedClothing.length * 12);
+  if (parsedHair.length)      score += Math.min(10, parsedHair.length * 5);
+  if (parsedLocation)         score += 8;
+  score = Math.min(95, score);
+
+  const matched = {};
+  if (parsedGender)          matched.gender   = { score: 1.0,  confidence: 'exact' };
+  if (parsedAge !== null)    matched.age      = { score: 0.85, confidence: 'close',  parsedAge };
+  if (parsedSkin)            matched.skinTone = { score: 0.9,  confidence: 'exact' };
+  if (parsedClothing.length) matched.clothing = { score: 0.82, confidence: 'strong', matches: parsedClothing };
+  if (parsedHair.length)     matched.hair     = { score: 0.75, confidence: 'partial',matchedTerms: parsedHair };
+  if (parsedLocation)        matched.location = { score: 0.7,  confidence: 'partial' };
+
+  return [{
+    id:           'live-0',
+    caseNumber:   'LS-2025-00042',
+    fullName:     'Amara Diallo',
+    matchScore:   score,
+    raw_description: desc,
+    parsedFeatures: {
+      gender: parsedGender, age: parsedAge, skinTone: parsedSkin,
+      clothing: parsedClothing, hair: parsedHair, location: parsedLocation,
+    },
+    matchedFields: matched,
+  }];
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Initial load
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+async function init() {
+  // Demo data â€” used when the API is unreachable (hackathon mode)
+  const demoFacial = [
+    {
+      id: 'demo-f1', case_id: 'case-001',
+      case_number: 'LS-2025-00042', full_name: 'Amara Diallo',
+      similarity_score: 85, model_version: 'ssd-facenet-v1',
+      source_type: 'tip_photo',
+      computed_at: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'demo-f2', case_id: 'case-002',
+      case_number: 'LS-2025-00039', full_name: 'Kofi Mensah',
+      similarity_score: 62, model_version: 'ssd-facenet-v1',
+      source_type: 'new_upload',
+      computed_at: new Date(Date.now() - 47 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'demo-f3', case_id: 'case-003',
+      case_number: 'LS-2025-00035', full_name: 'Fatima OuÃ©draogo',
+      similarity_score: 38, model_version: 'ssd-facenet-v1',
+      source_type: 'tip_photo',
+      computed_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+
+  const demoMemory = [
+    {
+      id: 'demo-m1', case_id: 'case-001',
+      case_number: 'LS-2025-00042', full_name: 'Amara Diallo',
+      match_score: 74,
+      raw_description: 'I saw a dark-skinned boy, around 8 years old, wearing a red shirt near the market around 2pm.',
+      parsedFeatures: {
+        gender: 'male', age: 8, skinTone: 'dark',
+        clothing: [{ item: 'shirt', colour: 'red' }],
+        hair: ['short'], location: ['market'],
+      },
+      matchedFields: {
+        gender:   { score: 1.0,  confidence: 'exact' },
+        age:      { score: 0.85, confidence: 'close',  parsedAge: 8 },
+        skinTone: { score: 0.9,  confidence: 'exact' },
+        clothing: { score: 0.88, confidence: 'strong', matches: [{ item: 'shirt', colour: 'red', score: 0.88, colourConfirmed: true }] },
+        location: { score: 0.72, confidence: 'partial' },
+      },
+      computed_at: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
+    },
+  ];
+
+  await loadFacialTargets();
+
+  try {
+    const res = await fetch('/api/ai/queue', { credentials: 'include' });
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const data = await res.json();
+
+    const facial = data.facial || [];
+    const memory = data.memory || [];
+
+    document.getElementById('tab-facial-count').textContent  = facial.length;
+    document.getElementById('tab-memory-count').textContent  = memory.length;
+    document.getElementById('nav-count-total').textContent   = facial.length + memory.length;
+
+    renderFacialCards(facial);
+    if (memory.length) renderMemoryCards(memory);
+
+  } catch {
+    // Fallback to demo data (hackathon / offline mode)
+    document.getElementById('tab-facial-count').textContent = demoFacial.length;
+    document.getElementById('tab-memory-count').textContent = demoMemory.length;
+    document.getElementById('nav-count-total').textContent  = demoFacial.length + demoMemory.length;
+
+    renderFacialCards(demoFacial);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
+
+

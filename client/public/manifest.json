@@ -1,0 +1,35 @@
+{
+  "name": "LastSeen — Find Missing Children",
+  "short_name": "LastSeen",
+  "description": "Community-powered missing child alerts for African communities.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1B2A",
+  "theme_color": "#E8541A",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-72.png",  "sizes": "72x72",   "type": "image/png" },
+    { "src": "/icons/icon-96.png",  "sizes": "96x96",   "type": "image/png" },
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Report Missing Child",
+      "short_name": "Report",
+      "description": "File a new missing child report",
+      "url": "/report",
+      "icons": [{ "src": "/icons/shortcut-report.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Submit Anonymous Tip",
+      "short_name": "Tip",
+      "description": "Submit a tip about a sighting",
+      "url": "/tip",
+      "icons": [{ "src": "/icons/shortcut-tip.png", "sizes": "96x96" }]
+    }
+  ],
+  "categories": ["social", "utilities"],
+  "lang": "en"
+}

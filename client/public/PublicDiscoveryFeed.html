@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Public Discovery Feed - LastSeen</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --ink: #122236;
+      --ink-soft: #38506d;
+      --accent: #e3571a;
+      --accent-dark: #be4310;
+      --card: #fffdf8;
+      --line: rgba(18, 34, 54, 0.14);
+      --ok: #157560;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 15% 0%, #fff 0%, var(--bg) 55%);
+    }
+    .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 20px 14px 36px;
+    }
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+    .tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn, select {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--card);
+      color: var(--ink);
+      font-size: 14px;
+    }
+    .btn {
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .btn:hover { border-color: var(--ink-soft); }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .hint {
+      font-size: 13px;
+      color: var(--ink-soft);
+      margin-bottom: 12px;
+    }
+    #map {
+      height: 320px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      margin-bottom: 16px;
+      background: #dcd2c4;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 360px;
+    }
+    .photo {
+      width: 100%;
+      height: 190px;
+      object-fit: cover;
+      background: #d9d3ca;
+    }
+    .no-photo {
+      height: 190px;
+      display: grid;
+      place-items: center;
+      color: var(--ink-soft);
+      font-size: 14px;
+      background: repeating-linear-gradient(
+        -45deg,
+        #ece6dc,
+        #ece6dc 12px,
+        #e4dccf 12px,
+        #e4dccf 24px
+      );
+    }
+    .body {
+      padding: 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .title {
+      margin: 0;
+      font-size: 21px;
+      line-height: 1.15;
+    }
+    .meta {
+      font-size: 14px;
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+    .dist {
+      font-size: 13px;
+      color: var(--ok);
+      font-weight: 700;
+    }
+    .cta {
+      margin-top: auto;
+      width: 100%;
+      border: none;
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      display: inline-block;
+    }
+    .cta:hover { background: var(--accent-dark); }
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      color: var(--ink-soft);
+      background: #fff;
+    }
+    .section-title {
+      margin: 20px 0 10px;
+      font-size: 20px;
+    }
+    .resolved-note {
+      font-size: 13px;
+      color: var(--ink-soft);
+      margin-bottom: 10px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #e1f4ef;
+      color: #0f5b4a;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>Public Discovery Feed</h1>
+      <div class="tools">
+        <button class="btn" id="loc-btn">Use My Location</button>
+        <a class="btn" href="/auth">Log In / Sign Up</a>
+        <label for="radius">Filter radius:</label>
+        <select id="radius">
+          <option value="all">All cases</option>
+          <option value="5">5 km</option>
+          <option value="10">10 km</option>
+        </select>
+        <a class="btn" href="/tip">Anonymous Tip</a>
+        <a class="btn" href="/resolve">Resolve Case</a>
+        <a class="btn" href="/ai">AI Review</a>
+        <a class="btn btn-primary" href="/report">Create New Report</a>
+      </div>
+    </div>
+
+    <div class="hint" id="status">Loading active cases...</div>
+    <div id="map"></div>
+    <h2 class="section-title">Active Cases</h2>
+    <div class="grid" id="cards"></div>
+    <h2 class="section-title">Recently Resolved</h2>
+    <div class="resolved-note">These cases were marked as found/closed by coordinators.</div>
+    <div class="grid" id="resolved-cards"></div>
+  </div>
+
+  <script>
+    const cardsEl = document.getElementById('cards');
+    const resolvedCardsEl = document.getElementById('resolved-cards');
+    const statusEl = document.getElementById('status');
+    const radiusEl = document.getElementById('radius');
+    const locBtn = document.getElementById('loc-btn');
+
+    let activeCases = [];
+    let resolvedCases = [];
+    let myLocation = null;
+    let map;
+    let myMarker = null;
+    let myRadius = null;
+    let caseLayer;
+
+    init();
+
+    async function init() {
+      initMap();
+      await loadCases();
+      render();
+    }
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true }).setView([6.5244, 3.3792], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map);
+      caseLayer = L.layerGroup().addTo(map);
+    }
+
+    async function loadCases() {
+      try {
+        const [activeRes, foundRes] = await Promise.all([
+          fetch('/api/reports?status=active&limit=200&offset=0'),
+          fetch('/api/reports?status=found&limit=100&offset=0'),
+        ]);
+        if (!activeRes.ok) throw new Error('Failed to load active cases');
+
+        const activeData = await activeRes.json();
+        const foundData = foundRes.ok ? await foundRes.json() : { cases: [] };
+
+        activeCases = (activeData.cases || []).filter(c =>
+          Number.isFinite(Number(c.last_seen_lat)) && Number.isFinite(Number(c.last_seen_lng))
+        );
+        resolvedCases = (foundData.cases || []).slice(0, 24);
+        statusEl.textContent = `${activeCases.length} active cases loaded. ${resolvedCases.length} resolved cases shown.`;
+      } catch (err) {
+        statusEl.textContent = 'Could not load active cases right now.';
+        activeCases = [];
+        resolvedCases = [];
+      }
+    }
+
+    locBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'Geolocation is not supported by your browser.';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(pos => {
+        myLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        statusEl.textContent = 'Using your location for radius filtering.';
+        render();
+      }, () => {
+        statusEl.textContent = 'Could not get your location. Showing all cases.';
+      });
+    });
+
+    radiusEl.addEventListener('change', render);
+
+    function render() {
+      const radius = radiusEl.value === 'all' ? null : Number(radiusEl.value);
+      const visibleCases = activeCases.filter(c => {
+        if (!radius || !myLocation) return true;
+        const d = distanceKm(
+          myLocation.lat, myLocation.lng,
+          Number(c.last_seen_lat), Number(c.last_seen_lng)
+        );
+        return d <= radius;
+      }).map(c => {
+        let d = null;
+        if (myLocation) {
+          d = distanceKm(
+            myLocation.lat, myLocation.lng,
+            Number(c.last_seen_lat), Number(c.last_seen_lng)
+          );
+        }
+        return { ...c, _distanceKm: d };
+      });
+
+      renderMap(visibleCases, radius);
+      renderCards(visibleCases);
+      renderResolvedCases(resolvedCases);
+    }
+
+    function renderMap(cases, radius) {
+      caseLayer.clearLayers();
+
+      cases.forEach(c => {
+        const marker = L.marker([Number(c.last_seen_lat), Number(c.last_seen_lng)]);
+        marker.bindPopup(
+          `<strong>${escapeHtml(c.full_name || 'Unknown')}</strong><br>` +
+          `Age: ${escapeHtml(String(c.age_at_report ?? 'Unknown'))}<br>` +
+          `Last seen: ${escapeHtml(c.last_seen_place || 'Location not specified')}`
+        );
+        marker.addTo(caseLayer);
+      });
+
+      if (myMarker) {
+        map.removeLayer(myMarker);
+        myMarker = null;
+      }
+      if (myRadius) {
+        map.removeLayer(myRadius);
+        myRadius = null;
+      }
+
+      if (myLocation) {
+        myMarker = L.circleMarker([myLocation.lat, myLocation.lng], {
+          radius: 7,
+          color: '#157560',
+          fillColor: '#157560',
+          fillOpacity: 0.9,
+        }).addTo(map).bindPopup('Your location');
+        if (radius) {
+          myRadius = L.circle([myLocation.lat, myLocation.lng], {
+            radius: radius * 1000,
+            color: '#157560',
+            fillColor: '#157560',
+            fillOpacity: 0.08,
+          }).addTo(map);
+        }
+      }
+
+      const bounds = [];
+      cases.forEach(c => bounds.push([Number(c.last_seen_lat), Number(c.last_seen_lng)]));
+      if (myLocation) bounds.push([myLocation.lat, myLocation.lng]);
+      if (bounds.length) {
+        map.fitBounds(bounds, { padding: [28, 28] });
+      }
+    }
+
+    function renderCards(cases) {
+      if (!cases.length) {
+        cardsEl.innerHTML = '<div class="empty">No cases match this filter right now.</div>';
+        return;
+      }
+
+      cardsEl.innerHTML = cases.map(c => {
+        const img = c.photo_url
+          ? `<img class="photo" src="${escapeAttr(c.photo_url)}" alt="${escapeAttr(c.full_name || 'Case photo')}" />`
+          : `<div class="no-photo">No photo available</div>`;
+
+        const distanceText = c._distanceKm != null
+          ? `<div class="dist">${c._distanceKm.toFixed(1)} km from you</div>`
+          : '';
+
+        const caseId = encodeURIComponent(c.id);
+        const place = encodeURIComponent(c.last_seen_place || '');
+        const lat = encodeURIComponent(c.last_seen_lat);
+        const lng = encodeURIComponent(c.last_seen_lng);
+
+        return `
+          <article class="card">
+            ${img}
+            <div class="body">
+              <h2 class="title">${escapeHtml(c.full_name || 'Unknown child')}</h2>
+              <div class="meta">Age: <strong>${escapeHtml(String(c.age_at_report ?? 'Unknown'))}</strong></div>
+              <div class="meta">Last seen: ${escapeHtml(c.last_seen_place || 'Location not specified')}</div>
+              ${distanceText}
+              <a class="cta" href="/tip?childId=${caseId}&place=${place}&lat=${lat}&lng=${lng}">I Have Seen This Child</a>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderResolvedCases(cases) {
+      if (!cases.length) {
+        resolvedCardsEl.innerHTML = '<div class="empty">No resolved cases available yet.</div>';
+        return;
+      }
+
+      resolvedCardsEl.innerHTML = cases.map(c => {
+        const img = c.photo_url
+          ? `<img class="photo" src="${escapeAttr(c.photo_url)}" alt="${escapeAttr(c.full_name || 'Case photo')}" />`
+          : `<div class="no-photo">No photo available</div>`;
+
+        const resolvedDate = c.resolved_at
+          ? new Date(c.resolved_at).toLocaleString()
+          : 'Recently updated';
+        const statusLabel = c.status === 'found' ? 'Found' : 'Closed';
+
+        return `
+          <article class="card">
+            ${img}
+            <div class="body">
+              <h2 class="title">${escapeHtml(c.full_name || 'Unknown child')}</h2>
+              <div class="meta">Age at report: <strong>${escapeHtml(String(c.age_at_report ?? 'Unknown'))}</strong></div>
+              <div class="meta">Last seen: ${escapeHtml(c.last_seen_place || 'Location not specified')}</div>
+              <div class="meta">Updated: ${escapeHtml(resolvedDate)}</div>
+              <div><span class="badge">${escapeHtml(statusLabel)}</span></div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function distanceKm(lat1, lon1, lat2, lon2) {
+      const toRad = d => d * Math.PI / 180;
+      const R = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeAttr(str) {
+      return escapeHtml(str).replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

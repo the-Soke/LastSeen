@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login / Signup - LastSeen</title>
+  <style>
+    :root {
+      --ink: #122236;
+      --ink-soft: #47607c;
+      --bg: #f3efe7;
+      --card: #fffdf9;
+      --line: rgba(18, 34, 54, 0.14);
+      --accent: #e3571a;
+      --accent-dark: #ba4210;
+      --ok: #116e59;
+      --err: #ad2f1d;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: Georgia, serif; }
+    .shell { max-width: 860px; margin: 0 auto; padding: 20px 14px 40px; }
+    .nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 13px;
+      background: #fff;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    .head { padding: 16px 18px; border-bottom: 1px solid var(--line); }
+    h1, h2 { margin: 0; letter-spacing: -0.02em; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    h2 { font-size: 22px; }
+    .sub { color: var(--ink-soft); font-size: 14px; line-height: 1.45; }
+    form { padding: 14px 18px 18px; display: grid; gap: 10px; }
+    label { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 15px;
+      font-family: Georgia, serif;
+      background: #fff;
+      color: var(--ink);
+    }
+    .msg { min-height: 18px; font-size: 14px; line-height: 1.4; }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <h1>Account Access</h1>
+    <div class="sub" style="margin-bottom:10px;">Create an account or log in to file and resolve your own reports.</div>
+
+    <div class="nav">
+      <a class="btn" href="/feed">Discovery Feed</a>
+      <a class="btn" href="/report">New Report</a>
+      <a class="btn" href="/tip">Anonymous Tip</a>
+      <a class="btn" href="/resolve">Resolve Case</a>
+      <a class="btn" href="/ai">AI Review</a>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="head">
+          <h2>Sign Up</h2>
+          <div class="sub">Username/password plus at least one contact (email or phone) for AI alerts.</div>
+        </div>
+        <form id="signup-form">
+          <div>
+            <label for="signup-username">Username</label>
+            <input id="signup-username" required minlength="3" maxlength="40" />
+          </div>
+          <div>
+            <label for="signup-password">Password</label>
+            <input id="signup-password" type="password" required minlength="8" />
+          </div>
+          <div>
+            <label for="signup-email">Email (optional)</label>
+            <input id="signup-email" type="email" />
+          </div>
+          <div>
+            <label for="signup-phone">Phone (optional, SMS)</label>
+            <input id="signup-phone" placeholder="+15551234567" />
+          </div>
+          <button class="btn btn-primary" type="submit">Create Account</button>
+          <div class="msg" id="signup-msg"></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="head">
+          <h2>Log In</h2>
+          <div class="sub">Use your existing username and password.</div>
+        </div>
+        <form id="login-form">
+          <div>
+            <label for="login-username">Username</label>
+            <input id="login-username" required minlength="3" maxlength="40" />
+          </div>
+          <div>
+            <label for="login-password">Password</label>
+            <input id="login-password" type="password" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Log In</button>
+          <div class="msg" id="login-msg"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('signup-form').addEventListener('submit', (e) => handleAuth(e, 'signup'));
+    document.getElementById('login-form').addEventListener('submit', (e) => handleAuth(e, 'login'));
+
+    async function handleAuth(e, mode) {
+      e.preventDefault();
+      const userEl = document.getElementById(`${mode}-username`);
+      const passEl = document.getElementById(`${mode}-password`);
+      const msgEl = document.getElementById(`${mode}-msg`);
+      const emailEl = document.getElementById('signup-email');
+      const phoneEl = document.getElementById('signup-phone');
+      msgEl.className = 'msg';
+      msgEl.textContent = '';
+
+      try {
+        const res = await fetch(`/api/auth/${mode}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: userEl.value.trim(),
+            password: passEl.value,
+            email: mode === 'signup' ? emailEl.value.trim() : undefined,
+            phone: mode === 'signup' ? phoneEl.value.trim() : undefined,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+
+        msgEl.className = 'msg ok';
+        msgEl.textContent = `${mode === 'signup' ? 'Account created' : 'Login successful'}. Redirecting...`;
+        setTimeout(() => { location.href = '/report'; }, 500);
+      } catch (err) {
+        msgEl.className = 'msg err';
+        msgEl.textContent = err.message;
+      }
+    }
+  </script>
+</body>
+</html>
