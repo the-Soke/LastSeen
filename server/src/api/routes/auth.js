@@ -56,7 +56,7 @@ router.post(
     } catch (err) {
       if (err && (err.code === 'ER_BAD_FIELD_ERROR' || err.code === 'ER_NO_SUCH_TABLE')) {
         return res.status(500).json({
-          error: 'Auth schema not ready. Run migration database/migrations/003_user_auth.sql.',
+          error: 'Auth schema not ready. Run: npm run migrate',
         });
       }
       return res.status(500).json({ error: `Signup failed: ${err.message}` });
@@ -98,7 +98,7 @@ router.post(
     } catch (err) {
       if (err && (err.code === 'ER_BAD_FIELD_ERROR' || err.code === 'ER_NO_SUCH_TABLE')) {
         return res.status(500).json({
-          error: 'Auth schema not ready. Run migration database/migrations/003_user_auth.sql.',
+          error: 'Auth schema not ready. Run: npm run migrate',
         });
       }
       return res.status(500).json({ error: `Login failed: ${err.message}` });

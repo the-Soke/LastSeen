@@ -2,9 +2,9 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+const sequelize = require('./config/sequelize');
 
-const MIGRATIONS_DIR = __dirname;
+const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
 function migrationFiles() {
   return fs.readdirSync(MIGRATIONS_DIR)
@@ -12,21 +12,8 @@ function migrationFiles() {
     .sort((a, b) => a.localeCompare(b));
 }
 
-async function createConnection() {
-  const useSsl = String(process.env.DB_SSL || 'false').toLowerCase() === 'true';
-  return mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'lastseen',
-    multipleStatements: true,
-    ssl: useSsl ? {} : undefined,
-  });
-}
-
-async function ensureMigrationsTable(conn) {
-  await conn.execute(`
+async function ensureMigrationsTable() {
+  await sequelize.query(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id VARCHAR(120) NOT NULL PRIMARY KEY,
       description VARCHAR(255) NULL,
@@ -35,35 +22,32 @@ async function ensureMigrationsTable(conn) {
   `);
 }
 
-async function isApplied(conn, id) {
-  const [[row]] = await conn.execute(
-    'SELECT id FROM _migrations WHERE id = ?',
-    [id]
-  );
-  return !!row;
+async function isApplied(id) {
+  const [rows] = await sequelize.query('SELECT id FROM _migrations WHERE id = ?', {
+    replacements: [id],
+  });
+  return rows.length > 0;
 }
 
-async function markApplied(conn, id, description) {
-  await conn.execute(
+async function markApplied(id, description) {
+  await sequelize.query(
     'INSERT INTO _migrations (id, description, applied_at) VALUES (?, ?, NOW())',
-    [id, description || null]
+    { replacements: [id, description || null] }
   );
-}
-
-async function executeSqlFile(conn, filePath) {
-  const sql = fs.readFileSync(filePath, 'utf8');
-  await conn.query(sql);
 }
 
 async function run() {
-  const conn = await createConnection();
   try {
-    await ensureMigrationsTable(conn);
+    await sequelize.authenticate();
+    await ensureMigrationsTable();
+
     const files = migrationFiles();
     if (!files.length) {
       console.log('[Migrate] No JS migration files found.');
       return;
     }
+
+    const qi = sequelize.getQueryInterface();
 
     for (const file of files) {
       const fullPath = path.join(MIGRATIONS_DIR, file);
@@ -71,17 +55,17 @@ async function run() {
       const id = migration.id || path.basename(file, '.js');
       const description = migration.description || '';
 
-      if (await isApplied(conn, id)) {
+      if (await isApplied(id)) {
         console.log(`[Migrate] Skip ${id} (already applied)`);
         continue;
       }
 
       console.log(`[Migrate] Apply ${id}${description ? ` - ${description}` : ''}`);
       await migration.up({
-        conn,
-        executeSqlFile: (p) => executeSqlFile(conn, p),
+        sequelize,
+        queryInterface: qi,
       });
-      await markApplied(conn, id, description);
+      await markApplied(id, description);
       console.log(`[Migrate] Done ${id}`);
     }
 
@@ -90,7 +74,7 @@ async function run() {
     console.error('[Migrate] Failed:', err.message);
     process.exitCode = 1;
   } finally {
-    await conn.end();
+    await sequelize.close();
   }
 }
 
