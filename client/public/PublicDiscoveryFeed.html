@@ -177,6 +177,106 @@
       background: #e1f4ef;
       color: #0f5b4a;
     }
+    .card-click { cursor: pointer; }
+    .detail-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 1000;
+    }
+    .detail-modal.open { display: flex; }
+    .detail-panel {
+      width: min(760px, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      box-shadow: 0 22px 48px rgba(18, 34, 54, 0.22);
+    }
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .detail-close {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .detail-body {
+      padding: 14px 16px 18px;
+      display: grid;
+      gap: 10px;
+    }
+    .detail-photo {
+      width: 100%;
+      max-height: 280px;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #eee;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .detail-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fffdf8;
+      padding: 10px;
+    }
+    .detail-key {
+      font-size: 12px;
+      color: var(--ink-soft);
+      margin-bottom: 3px;
+    }
+    .detail-value {
+      font-size: 14px;
+      color: var(--ink);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 760px) {
+      .wrap { padding: 14px 10px 28px; }
+      h1 { font-size: 24px; }
+      .tools { width: 100%; }
+      .tools .btn,
+      .tools select {
+        flex: 1 1 calc(50% - 8px);
+        text-align: center;
+      }
+      #map { height: 250px; }
+      .grid { grid-template-columns: 1fr; }
+      .card { min-height: 0; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .detail-panel { max-height: 94vh; }
+    }
+    @media (max-width: 460px) {
+      .tools .btn,
+      .tools select {
+        flex: 1 1 100%;
+      }
+      .title { font-size: 19px; }
+      .detail-head h3 { font-size: 18px; }
+    }
   </style>
 </head>
 <body>
@@ -207,6 +307,17 @@
     <div class="resolved-note">These cases were marked as found/closed by coordinators.</div>
     <div class="grid" id="resolved-cards"></div>
   </div>
+  <div class="detail-modal" id="detail-modal" aria-hidden="true">
+    <div class="detail-panel" role="dialog" aria-modal="true" aria-label="Case details">
+      <div class="detail-head">
+        <h3 id="detail-title" style="margin:0;font-size:20px;">Case Details</h3>
+        <button class="detail-close" id="detail-close" type="button">Close</button>
+      </div>
+      <div class="detail-body" id="detail-body">
+        Loading...
+      </div>
+    </div>
+  </div>
 
   <script>
     const cardsEl = document.getElementById('cards');
@@ -214,6 +325,10 @@
     const statusEl = document.getElementById('status');
     const radiusEl = document.getElementById('radius');
     const locBtn = document.getElementById('loc-btn');
+    const detailModalEl = document.getElementById('detail-modal');
+    const detailBodyEl = document.getElementById('detail-body');
+    const detailTitleEl = document.getElementById('detail-title');
+    const detailCloseEl = document.getElementById('detail-close');
 
     let activeCases = [];
     let resolvedCases = [];
@@ -281,6 +396,15 @@
     });
 
     radiusEl.addEventListener('change', render);
+    cardsEl.addEventListener('click', onCardGridClick);
+    resolvedCardsEl.addEventListener('click', onCardGridClick);
+    detailCloseEl.addEventListener('click', closeCaseDetail);
+    detailModalEl.addEventListener('click', (event) => {
+      if (event.target === detailModalEl) closeCaseDetail();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeCaseDetail();
+    });
 
     function render() {
       const radius = radiusEl.value === 'all' ? null : Number(radiusEl.value);
@@ -380,7 +504,7 @@
         const lng = encodeURIComponent(c.last_seen_lng);
 
         return `
-          <article class="card">
+          <article class="card card-click" data-case-id="${escapeAttr(c.id)}">
             ${img}
             <div class="body">
               <h2 class="title">${escapeHtml(c.full_name || 'Unknown child')}</h2>
@@ -412,7 +536,7 @@
         const statusLabel = c.status === 'found' ? 'Found' : 'Closed';
 
         return `
-          <article class="card">
+          <article class="card card-click" data-case-id="${escapeAttr(c.id)}">
             ${img}
             <div class="body">
               <h2 class="title">${escapeHtml(c.full_name || 'Unknown child')}</h2>
@@ -424,6 +548,101 @@
           </article>
         `;
       }).join('');
+    }
+
+    function onCardGridClick(event) {
+      if (event.target.closest('.cta')) return;
+      const card = event.target.closest('[data-case-id]');
+      if (!card) return;
+      openCaseDetail(card.dataset.caseId);
+    }
+
+    async function openCaseDetail(caseId) {
+      if (!caseId) return;
+      detailModalEl.classList.add('open');
+      detailModalEl.setAttribute('aria-hidden', 'false');
+      detailTitleEl.textContent = 'Case Details';
+      detailBodyEl.innerHTML = '<div class="meta">Loading case details...</div>';
+
+      try {
+        const res = await fetch(`/api/reports/${encodeURIComponent(caseId)}?_=${Date.now()}`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error('Failed to load case details.');
+        const data = await res.json();
+        const c = data.case || {};
+        const name = c.full_name || 'Unknown child';
+        detailTitleEl.textContent = `${name} (${c.case_number || 'Case'})`;
+
+        const photoUrl = resolvePhotoUrl(c.photo_url);
+        const tipHref = `/tip?childId=${encodeURIComponent(caseId)}&place=${encodeURIComponent(c.last_seen_place || '')}&lat=${encodeURIComponent(c.last_seen_lat || '')}&lng=${encodeURIComponent(c.last_seen_lng || '')}`;
+
+        detailBodyEl.innerHTML = `
+          ${photoUrl ? `<img class="detail-photo" src="${escapeAttr(photoUrl)}" alt="${escapeAttr(name)}" />` : ''}
+          <div class="detail-grid">
+            ${renderDetailItem('Case Number', c.case_number)}
+            ${renderDetailItem('Status', c.status)}
+            ${renderDetailItem('Age', c.age_at_report)}
+            ${renderDetailItem('Gender', c.gender)}
+            ${renderDetailItem('Nickname', c.nickname)}
+            ${renderDetailItem('Last Seen Time', formatDate(c.last_seen_at))}
+            ${renderDetailItem('Last Seen Place', c.last_seen_place)}
+            ${renderDetailItem('Coordinates', formatCoords(c.last_seen_lat, c.last_seen_lng))}
+            ${renderDetailItem('Clothing', c.clothing_desc)}
+            ${renderDetailItem('Distinguishing', c.distinguishing)}
+            ${renderDetailItem('Hair', [c.hair_color, c.hair_style].filter(Boolean).join(', '))}
+            ${renderDetailItem('Eye Color', c.eye_color)}
+            ${renderDetailItem('Skin Tone', c.skin_tone)}
+            ${renderDetailItem('Tips Received', data.tipCount)}
+          </div>
+          <div class="detail-actions">
+            <a class="cta" href="${escapeAttr(tipHref)}">I Have Seen This Child</a>
+          </div>
+          ${renderActivity(data.recentActivity || [])}
+        `;
+      } catch (err) {
+        detailBodyEl.innerHTML = `<div class="empty">Could not load full case details right now.</div>`;
+      }
+    }
+
+    function closeCaseDetail() {
+      if (!detailModalEl.classList.contains('open')) return;
+      detailModalEl.classList.remove('open');
+      detailModalEl.setAttribute('aria-hidden', 'true');
+    }
+
+    function renderDetailItem(key, value) {
+      const safe = value == null || value === '' ? 'Not provided' : String(value);
+      return `
+        <div class="detail-item">
+          <div class="detail-key">${escapeHtml(key)}</div>
+          <div class="detail-value">${escapeHtml(safe)}</div>
+        </div>
+      `;
+    }
+
+    function renderActivity(items) {
+      if (!items.length) return '';
+      const rows = items.slice(0, 5).map(item => {
+        const action = item.action || 'activity';
+        const occurred = formatDate(item.occurred_at);
+        return `<div class="meta">${escapeHtml(action)} - ${escapeHtml(occurred)}</div>`;
+      }).join('');
+      return `<div><h4 style="margin:0 0 6px;">Recent Activity</h4>${rows}</div>`;
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Not provided';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return String(value);
+      return d.toLocaleString();
+    }
+
+    function formatCoords(lat, lng) {
+      const nLat = Number(lat);
+      const nLng = Number(lng);
+      if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) return 'Not provided';
+      return `${nLat.toFixed(5)}, ${nLng.toFixed(5)}`;
     }
 
     function distanceKm(lat1, lon1, lat2, lon2) {

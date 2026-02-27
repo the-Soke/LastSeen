@@ -371,6 +371,51 @@
       to   { opacity: 1; transform: translateX(0); }
     }
 
+    @media (max-width: 820px) {
+      .topbar,
+      .progress-wrap {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .card {
+        margin: 16px 10px 24px;
+      }
+      .card-header,
+      .card-body,
+      .card-footer {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+      .topbar {
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .topbar-links {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+      .card-title { font-size: 23px; }
+      .card-footer {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .card-footer .btn {
+        flex: 1 1 170px;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .progress-labels { gap: 8px; }
+      .progress-label { font-size: 9px; }
+      .coords-display { flex-direction: column; }
+      .card-title { font-size: 21px; }
+      .card-subtitle { font-size: 13px; }
+      .review-grid { grid-template-columns: 1fr; }
+      .card-footer .btn { width: 100%; }
+    }
+
     /* ─── Scrollbar ─────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -631,6 +676,7 @@
   let selectedSkinTone = '';
   let photoBase64 = null;
   let photoFile   = null;
+  let reverseGeocodeController = null;
 
   const formData = {
     fullName: '', nickname: '', age: null, gender: '',
@@ -830,6 +876,40 @@
     document.getElementById('lat-display').value = lat.toFixed(6);
     document.getElementById('lng-display').value = lng.toFixed(6);
     document.getElementById('err-map').classList.remove('visible');
+    reverseGeocodeLastSeen(lat, lng);
+  }
+
+  async function reverseGeocodeLastSeen(lat, lng) {
+    const placeInput = document.getElementById('last-seen-place');
+    if (!placeInput) return;
+
+    if (reverseGeocodeController) reverseGeocodeController.abort();
+    reverseGeocodeController = new AbortController();
+
+    const previousValue = placeInput.value.trim();
+    placeInput.value = 'Resolving address...';
+
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept-Language': 'en' },
+        signal: reverseGeocodeController.signal,
+      });
+
+      if (!res.ok) throw new Error('Reverse geocode request failed');
+      const data = await res.json();
+      const resolved = (data && (data.display_name || data.name || '')).trim();
+
+      if (resolved) {
+        placeInput.value = resolved;
+      } else {
+        placeInput.value = previousValue;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      placeInput.value = previousValue;
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
