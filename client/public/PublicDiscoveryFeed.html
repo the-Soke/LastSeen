@@ -365,8 +365,9 @@
       }
 
       cardsEl.innerHTML = cases.map(c => {
-        const img = c.photo_url
-          ? `<img class="photo" src="${escapeAttr(c.photo_url)}" alt="${escapeAttr(c.full_name || 'Case photo')}" />`
+        const photoUrl = resolvePhotoUrl(c.photo_url);
+        const img = photoUrl
+          ? `<img class="photo" src="${escapeAttr(photoUrl)}" alt="${escapeAttr(c.full_name || 'Case photo')}" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'no-photo',textContent:'No photo available'}));" />`
           : `<div class="no-photo">No photo available</div>`;
 
         const distanceText = c._distanceKm != null
@@ -400,8 +401,9 @@
       }
 
       resolvedCardsEl.innerHTML = cases.map(c => {
-        const img = c.photo_url
-          ? `<img class="photo" src="${escapeAttr(c.photo_url)}" alt="${escapeAttr(c.full_name || 'Case photo')}" />`
+        const photoUrl = resolvePhotoUrl(c.photo_url);
+        const img = photoUrl
+          ? `<img class="photo" src="${escapeAttr(photoUrl)}" alt="${escapeAttr(c.full_name || 'Case photo')}" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'no-photo',textContent:'No photo available'}));" />`
           : `<div class="no-photo">No photo available</div>`;
 
         const resolvedDate = c.resolved_at
@@ -446,6 +448,13 @@
 
     function escapeAttr(str) {
       return escapeHtml(str).replace(/'/g, '&#39;');
+    }
+
+    function resolvePhotoUrl(url) {
+      if (!url) return '';
+      if (/^https?:\/\//i.test(url)) return url;
+      if (url.startsWith('/')) return `${location.origin}${url}`;
+      return `${location.origin}/${url}`;
     }
   </script>
 </body>

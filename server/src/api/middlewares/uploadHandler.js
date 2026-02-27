@@ -14,7 +14,7 @@ const crypto = require('crypto');
 
 const UPLOAD_DIR = path.join(__dirname, '../../../../uploads');
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIMES  = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_MIMES  = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 /**
  * Upload a base64-encoded image.
@@ -24,7 +24,9 @@ const ALLOWED_MIMES  = ['image/jpeg', 'image/png', 'image/webp'];
  */
 async function uploadPhoto(base64String, storagePath) {
   // 1. Parse data URI
-  const matches = base64String.match(/^data:([a-zA-Z0-9+/]+\/[a-zA-Z0-9+/]+);base64,(.+)$/);
+  const matches = String(base64String).match(
+    /^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+)(?:;[^,]*)?;base64,(.+)$/
+  );
   if (!matches) throw new Error('Invalid base64 image format.');
 
   const mimeType = matches[1];

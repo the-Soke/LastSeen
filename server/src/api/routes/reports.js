@@ -84,7 +84,10 @@ router.post('/', reportValidation, async (req, res) => {
       photoUrl  = result.url;
       photoHash = result.hash;
     } catch (err) {
-      logger.warn('Photo upload failed, continuing without photo:', err.message);
+      logger.warn('Photo upload failed:', err.message);
+      return res.status(422).json({
+        error: `Photo upload failed: ${err.message}`,
+      });
     }
   }
 
