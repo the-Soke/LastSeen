@@ -51,7 +51,7 @@ const limiter = rateLimit({
 
 const reportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 10,
+  max: 100,
   message: { error: 'Report limit reached. Contact a coordinator if urgent.' },
 });
 
