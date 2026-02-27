@@ -62,9 +62,11 @@ async function uploadPhoto(base64String, storagePath) {
 async function saveToLocalDisk(buffer, filename) {
   if (!fs.existsSync(UPLOAD_DIR)) {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    console.info('[Upload] Created uploads dir:', UPLOAD_DIR);
   }
   const filePath = path.join(UPLOAD_DIR, filename);
   fs.writeFileSync(filePath, buffer);
+  console.info('[Upload] Saved photo to local disk:', filePath);
   return `/uploads/${filename}`;
 }
 
@@ -72,6 +74,9 @@ async function saveToLocalDisk(buffer, filename) {
 async function uploadToS3(buffer, filename, mimeType) {
   // Requires: npm install @aws-sdk/client-s3
   const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+  if (!process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY) {
+    throw new Error('S3 credentials are missing. Set S3_ACCESS_KEY and S3_SECRET_KEY.');
+  }
 
   const client = new S3Client({
     region:   process.env.S3_REGION   || 'us-east-1',
@@ -94,7 +99,17 @@ async function uploadToS3(buffer, filename, mimeType) {
     ServerSideEncryption: 'AES256',
   }));
 
-  return `${process.env.S3_PUBLIC_URL || ''}/${bucket}/${key}`;
+  const publicBase = String(process.env.S3_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  if (publicBase) {
+    return `${publicBase}/${key}`;
+  }
+
+  // Fallback path if no public URL is configured.
+  const endpoint = String(process.env.S3_ENDPOINT || '').trim().replace(/\/+$/, '');
+  if (endpoint) {
+    return `${endpoint}/${bucket}/${key}`;
+  }
+  return `https://${bucket}.s3.${process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 }
 
 module.exports = { uploadPhoto };

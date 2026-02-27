@@ -22,13 +22,14 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", 'cdnjs.cloudflare.com', 'fonts.googleapis.com'],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'cdnjs.cloudflare.com', 'fonts.googleapis.com'],
-      imgSrc: ["'self'", 'data:', '*.tile.openstreetmap.org'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:', '*.tile.openstreetmap.org'],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", 'fonts.gstatic.com'],
     },
@@ -61,8 +62,12 @@ app.use(express.urlencoded({ extended: false }));
 app.use(optionalAuth);
 
 const uploadsDir = path.join(__dirname, '../../uploads');
-if (process.env.STORAGE_DRIVER !== 's3' && fs.existsSync(uploadsDir)) {
+if (process.env.STORAGE_DRIVER !== 's3') {
   app.use('/uploads', express.static(uploadsDir));
+}
+
+if (process.env.NODE_ENV === 'production' && process.env.STORAGE_DRIVER !== 's3') {
+  console.warn('[Storage] Using local uploads in production. Files may be lost on redeploy/restart.');
 }
 
 app.get('/health', (_req, res) => {
