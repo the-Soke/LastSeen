@@ -61,12 +61,13 @@ app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(optionalAuth);
 
+const storageDriver = String(process.env.STORAGE_DRIVER || 'local').toLowerCase();
 const uploadsDir = path.join(__dirname, '../../uploads');
-if (process.env.STORAGE_DRIVER !== 's3') {
+if (storageDriver === 'local') {
   app.use('/uploads', express.static(uploadsDir));
 }
 
-if (process.env.NODE_ENV === 'production' && process.env.STORAGE_DRIVER !== 's3') {
+if (process.env.NODE_ENV === 'production' && storageDriver === 'local') {
   console.warn('[Storage] Using local uploads in production. Files may be lost on redeploy/restart.');
 }
 
