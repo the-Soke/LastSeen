@@ -60,8 +60,9 @@ app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(optionalAuth);
 
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+const uploadsDir = path.join(__dirname, '../../uploads');
+if (process.env.STORAGE_DRIVER !== 's3' && fs.existsSync(uploadsDir)) {
+  app.use('/uploads', express.static(uploadsDir));
 }
 
 app.get('/health', (_req, res) => {
