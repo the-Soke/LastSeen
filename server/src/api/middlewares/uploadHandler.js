@@ -49,7 +49,9 @@ async function uploadPhoto(base64String, storagePath) {
 
   let url;
 
-  if (process.env.STORAGE_DRIVER === 's3') {
+  if (process.env.STORAGE_DRIVER === 'cloudinary') {
+    url = await uploadToCloudinary(buffer, filename, mimeType, hash, storagePath);
+  } else if (process.env.STORAGE_DRIVER === 's3') {
     url = await uploadToS3(buffer, filename, mimeType);
   } else {
     url = await saveToLocalDisk(buffer, filename);
@@ -110,6 +112,44 @@ async function uploadToS3(buffer, filename, mimeType) {
     return `${endpoint}/${bucket}/${key}`;
   }
   return `https://${bucket}.s3.${process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+}
+
+async function uploadToCloudinary(buffer, filename, mimeType, hash, storagePath) {
+  const { v2: cloudinary } = require('cloudinary');
+
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error(
+      'Cloudinary credentials are missing. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.'
+    );
+  }
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+
+  const baseFolder = String(process.env.CLOUDINARY_FOLDER || 'lastseen/photos')
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
+  const hintFolder = String(storagePath || '')
+    .trim()
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/[^a-zA-Z0-9/_-]/g, '');
+  const folder = hintFolder ? `${baseFolder}/${hintFolder}` : baseFolder;
+  const ext = mimeType.split('/')[1].replace('jpeg', 'jpg');
+  const publicId = `${hash}-${Date.now()}.${ext}`;
+  const dataUri = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder,
+    public_id: publicId,
+    resource_type: 'image',
+    overwrite: false,
+  });
+
+  return result.secure_url || result.url;
 }
 
 module.exports = { uploadPhoto };
