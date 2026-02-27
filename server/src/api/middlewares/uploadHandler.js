@@ -46,12 +46,13 @@ async function uploadPhoto(base64String, storagePath) {
   // 4. Determine extension
   const ext = mimeType.split('/')[1].replace('jpeg', 'jpg');
   const filename = `${hash}.${ext}`;
+  const storageDriver = String(process.env.STORAGE_DRIVER || 'local').trim().toLowerCase();
 
   let url;
 
-  if (process.env.STORAGE_DRIVER === 'cloudinary') {
+  if (storageDriver === 'cloudinary') {
     url = await uploadToCloudinary(buffer, filename, mimeType, hash, storagePath);
-  } else if (process.env.STORAGE_DRIVER === 's3') {
+  } else if (storageDriver === 's3') {
     url = await uploadToS3(buffer, filename, mimeType);
   } else {
     url = await saveToLocalDisk(buffer, filename);

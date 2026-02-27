@@ -61,7 +61,7 @@ app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(optionalAuth);
 
-const storageDriver = String(process.env.STORAGE_DRIVER || 'local').toLowerCase();
+const storageDriver = String(process.env.STORAGE_DRIVER || 'local').trim().toLowerCase();
 const uploadsDir = path.join(__dirname, '../../uploads');
 if (storageDriver === 'local') {
   app.use('/uploads', express.static(uploadsDir));
