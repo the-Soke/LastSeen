@@ -561,7 +561,7 @@
         <div class="card-body">
           <div class="field">
             <div class="photo-drop" id="photo-drop">
-              <input type="file" id="photo-input" accept="image/*" capture="environment" />
+              <input type="file" id="photo-input" accept="image/*" />
               <div class="photo-drop-icon">📷</div>
               <div class="photo-drop-text">Tap to take a photo or choose from gallery</div>
               <div class="photo-drop-sub">JPG, PNG or WEBP — max 5MB</div>
@@ -835,8 +835,7 @@
   // ─────────────────────────────────────────────────────────────
   //  Photo handling
   // ─────────────────────────────────────────────────────────────
-  document.getElementById('photo-input').addEventListener('change', (e) => {
-    const file = e.target.files[0];
+  function handlePhotoFile(file) {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
       alert('Photo must be under 5MB.');
@@ -851,6 +850,11 @@
       document.getElementById('photo-clear').style.display = 'block';
     };
     reader.readAsDataURL(file);
+  }
+
+  document.getElementById('photo-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    handlePhotoFile(file);
   });
 
   const photoDrop = document.getElementById('photo-drop');
@@ -859,7 +863,7 @@
   photoDrop.addEventListener('drop', e => {
     e.preventDefault(); photoDrop.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
-    if (file) document.getElementById('photo-input').files = e.dataTransfer.files;
+    if (file) handlePhotoFile(file);
   });
 
   function clearPhoto() {
